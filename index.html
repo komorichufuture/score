@@ -2,828 +2,289 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>JSON 楽譜エディタ（ト音記号・ヘ音記号対応）</title>
+  <title>Keyboard Notation → MusicXML</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    * { box-sizing: border-box; }
-    body {
+    * {
+      box-sizing: border-box;
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f5f5f5;
-      color: #222;
+      padding: 0;
     }
 
-    header {
-      padding: 10px 16px;
-      background: #333;
-      color: #fff;
-      font-size: 16px;
-    }
-
-    main {
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: #1e293b;
+      color: #e5e7eb;
+      min-height: 100vh;
       display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 12px;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 16px;
     }
 
-    .panel {
-      background: #fff;
-      border-radius: 8px;
-      padding: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    .app {
+      width: 100%;
+      max-width: 800px;
+      background: #0f172a;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      border: 1px solid #334155;
     }
 
-    .left-panel {
-      flex: 1 1 260px;
-      min-width: 260px;
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+      text-align: center;
     }
 
-    .right-panel {
-      flex: 2 1 320px;
-      min-width: 320px;
-    }
-
-    .field-group {
+    .status-bar {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 8px;
-      align-items: center;
+      margin-bottom: 12px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #020617;
+      border: 1px solid #1e293b;
+      font-size: 0.9rem;
     }
 
-    label {
-      font-size: 12px;
+    .status-item {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #111827;
+      border: 1px solid #374151;
+    }
+
+    .status-label {
+      opacity: 0.7;
       margin-right: 4px;
     }
 
-    input[type="number"],
-    select {
+    .status-value {
+      font-weight: 600;
+      color: #facc15;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 720px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: #020617;
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid #1f2937;
+    }
+
+    .panel h2 {
+      font-size: 1rem;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #1f2937;
+      padding-bottom: 4px;
+    }
+
+    .cheatsheet-list {
+      list-style: none;
+      font-size: 0.85rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 4px 8px;
+    }
+
+    .cheatsheet-list li {
       padding: 4px 6px;
-      font-size: 14px;
+      border-radius: 8px;
+      background: #020617;
+      border: 1px solid #111827;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .keycap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #111827;
+      border: 1px solid #4b5563;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 0.8rem;
+    }
+
+    .score-list {
+      list-style: decimal;
+      padding-left: 1.4rem;
+      max-height: 260px;
+      overflow-y: auto;
+      font-size: 0.9rem;
+    }
+
+    .score-list li {
+      padding: 2px 4px;
+      border-radius: 6px;
+      margin-bottom: 2px;
+    }
+
+    .score-list li:nth-child(odd) {
+      background: rgba(15, 23, 42, 0.7);
+    }
+
+    .score-list li:nth-child(even) {
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .note-tag {
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.75rem;
+      background: #0f172a;
+      border: 1px solid #4b5563;
+      margin-left: 4px;
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      justify-content: flex-end;
     }
 
     button {
-      padding: 6px 10px;
-      font-size: 13px;
-      border-radius: 999px;
       border: none;
+      outline: none;
       cursor: pointer;
-      background: #1976d2;
-      color: #fff;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.05s ease, box-shadow 0.05s ease,
+        background 0.2s ease;
+    }
+
+    button:active {
+      transform: translateY(1px);
+      box-shadow: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #022c22;
+      box-shadow: 0 8px 16px rgba(34, 197, 94, 0.35);
+    }
+
+    .btn-secondary {
+      background: #111827;
+      color: #e5e7eb;
+      border: 1px solid #374151;
+    }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      opacity: 0.75;
+    }
+
+    .badge {
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      background: #111827;
+      border: 1px solid #374151;
+      margin-left: 4px;
     }
 
-    button.secondary {
-      background: #666;
-    }
-
-    button.danger {
-      background: #c62828;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-
-    canvas {
-      background: #fafafa;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      width: 100%;
-      height: auto;
-      max-width: 100%;
-    }
-
-    .notes-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-      margin-top: 8px;
-    }
-
-    .notes-table th,
-    .notes-table td {
-      border-bottom: 1px solid #eee;
-      padding: 4px 6px;
-      text-align: left;
-    }
-
-    .notes-table th {
-      background: #fafafa;
-    }
-
-    textarea {
-      width: 100%;
-      min-height: 180px;
-      resize: vertical;
-      font-family: monospace;
-      font-size: 12px;
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-
-    .small {
-      font-size: 11px;
-      opacity: 0.8;
-    }
-
-    .clef-info {
-      padding: 8px;
-      background: #e3f2fd;
-      border-radius: 6px;
-      font-size: 12px;
-      margin: 8px 0;
-    }
-
-    @media (max-width: 768px) {
-      main {
-        flex-direction: column;
-      }
+    code {
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 0.8rem;
+      background: #020617;
+      padding: 1px 4px;
+      border-radius: 4px;
     }
   </style>
 </head>
 <body>
-<header>
-  JSON 楽譜エディタ（ト音記号・ヘ音記号対応） – Multi-clef Score Editor
-</header>
+  <div class="app">
+    <h1>キーボード記譜 → MusicXML エクスポータ</h1>
 
-<main>
-  <!-- 左：入力フォーム & ノート一覧 -->
-  <section class="panel left-panel">
-    <h2 style="margin-top:0;font-size:16px;">楽譜設定 / Score Settings</h2>
-
-    <div class="field-group">
-      <label for="clef">音部記号 / Clef:</label>
-      <select id="clef">
-        <option value="treble">ト音記号 (Treble)</option>
-        <option value="bass">ヘ音記号 (Bass)</option>
-      </select>
-    </div>
-
-    <div class="clef-info" id="clefInfo">
-      ト音記号: 高音域用（フルート、バイオリンなど）
-    </div>
-
-    <div class="field-group">
-      <label for="tempo">テンポ (BPM):</label>
-      <input type="number" id="tempo" value="120" min="30" max="240">
-    </div>
-
-    <div class="field-group">
-      <label for="timeSig">拍子 / Time Signature:</label>
-      <select id="timeSig">
-        <option value="4/4">4/4</option>
-        <option value="3/4">3/4</option>
-        <option value="2/4">2/4</option>
-        <option value="6/8">6/8</option>
-      </select>
-    </div>
-
-    <hr>
-
-    <h3 style="margin-top:8px;font-size:14px;">音符追加 / Add Note</h3>
-
-    <div class="field-group">
-      <div>
-        <label for="pitch">音高 / Pitch:</label><br>
-        <select id="pitch">
-          <!-- 動的に生成 -->
-        </select>
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-label">現在の音高:</span>
+        <span id="currentPitch" class="status-value">C4</span>
       </div>
-
-      <div>
-        <label for="duration">長さ / Duration:</label><br>
-        <select id="duration">
-          <option value="whole">全音符 / whole</option>
-          <option value="half">2分音符 / half</option>
-          <option value="quarter" selected>4分音符 / quarter</option>
-          <option value="eighth">8分音符 / eighth</option>
-          <option value="sixteenth">16分音符 / sixteenth</option>
-        </select>
+      <div class="status-item">
+        <span class="status-label">現在の音価:</span>
+        <span id="currentDuration" class="status-value">quarter (4分音符)</span>
       </div>
-
-      <div style="align-self:flex-end;">
-        <button id="addNoteBtn">＋ 追加 / Add</button>
+      <div class="status-item">
+        <span class="status-label">ノート数:</span>
+        <span id="noteCount" class="status-value">0</span>
       </div>
     </div>
 
-    <p class="small">
-      ※ 休符を追加するには "REST" を選択してください。
-    </p>
+    <div class="layout">
+      <section class="panel">
+        <h2>キー割り当て <span class="badge">内部フォーマット → MusicXML 3.1</span></h2>
+        <ul class="cheatsheet-list">
+          <li><span class="keycap">↑</span> 音高を1ステップ上げる</li>
+          <li><span class="keycap">↓</span> 音高を1ステップ下げる</li>
+          <li><span class="keycap">1</span> 全音符 (whole)</li>
+          <li><span class="keycap">2</span> 2分音符 (half)</li>
+          <li><span class="keycap">3</span> 4分音符 (quarter)</li>
+          <li><span class="keycap">4</span> 8分音符 (eighth)</li>
+          <li><span class="keycap">5</span> 16分音符 (16th)</li>
+          <li><span class="keycap">N</span> 音符を追加 (Note)</li>
+          <li><span class="keycap">R</span> 休符を追加 (Rest)</li>
+          <li><span class="keycap">D</span> 最後のノートを削除</li>
+        </ul>
+        <p class="hint">
+          まず <code>↑ / ↓</code> で音高、<code>1〜5</code> で音価を選び、
+          <code>N</code> で音符、<code>R</code> で休符をどんどん打ち込んでください。
+        </p>
+        <p class="hint">
+          書き出しファイルの拡張子は <code>.musicxml</code> です（多くのソフトでそのまま読めます）。
+        </p>
+      </section>
 
-    <table class="notes-table" id="notesTable">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Pitch</th>
-          <th>Duration</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- JS で挿入 -->
-      </tbody>
-    </table>
+      <section class="panel">
+        <h2>スコア（テキスト表示）</h2>
+        <ol id="noteList" class="score-list"></ol>
 
-    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="secondary" id="clearNotesBtn">全削除 / Clear all</button>
+        <div class="buttons">
+          <button id="clearBtn" class="btn-secondary" type="button">
+            全削除
+          </button>
+          <button id="downloadXmlBtn" class="btn-primary" type="button">
+            MusicXML をダウンロード
+          </button>
+        </div>
+        <p class="hint">
+          ※ まだ五線譜表示や再生はありません。まずは「キーボード → MusicXML」のパイプを作る段階です。
+        </p>
+      </section>
     </div>
+  </div>
 
-    <!-- JSON ファイル読み込み -->
-    <div class="field-group" style="margin-top:12px;">
-      <input type="file" id="jsonFileInput" accept="application/json" style="display:none;">
-      <button id="loadJsonBtn" class="secondary">JSONを読み込む / Load JSON</button>
-    </div>
-  </section>
-
-  <!-- 右：五線譜 & JSON -->
-  <section class="panel right-panel">
-    <h2 style="margin-top:0;font-size:16px;">五線譜プレビュー / Staff Preview</h2>
-    <canvas id="staffCanvas" width="800" height="200"></canvas>
-
-    <h3 style="margin-top:12px;font-size:14px;">JSON 楽譜 / JSON Score</h3>
-    <textarea id="jsonOutput" readonly></textarea>
-    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
-      <button id="copyJsonBtn">JSON をコピー / Copy JSON</button>
-      <button id="downloadJsonBtn" class="secondary">JSON をダウンロード / Download</button>
-    </div>
-    <p class="small">
-      音部記号（clef）情報も JSON に含まれます。アプリ側で適切な音域で再生してください。
-    </p>
-  </section>
-</main>
-
-<script>
-  // 内部状態
-  let notes = [];
-  let currentClef = 'treble';
-
-  const clefSelect       = document.getElementById('clef');
-  const clefInfo         = document.getElementById('clefInfo');
-  const tempoInput       = document.getElementById('tempo');
-  const timeSigSelect    = document.getElementById('timeSig');
-  const pitchSelect      = document.getElementById('pitch');
-  const durationSelect   = document.getElementById('duration');
-  const addNoteBtn       = document.getElementById('addNoteBtn');
-  const clearNotesBtn    = document.getElementById('clearNotesBtn');
-  const notesTableBody   = document.querySelector('#notesTable tbody');
-  const jsonOutput       = document.getElementById('jsonOutput');
-  const copyJsonBtn      = document.getElementById('copyJsonBtn');
-  const downloadJsonBtn  = document.getElementById('downloadJsonBtn');
-  const canvas           = document.getElementById('staffCanvas');
-  const ctx              = canvas.getContext('2d');
-
-  // JSON読み込み用
-  const jsonFileInput    = document.getElementById("jsonFileInput");
-  const loadJsonBtn      = document.getElementById("loadJsonBtn");
-
-  // ト音記号での音符位置
-  const trebleNotePositions = {
-    "C6": 5.5,
-    "B5": 5,
-    "A5": 4.5,
-    "G5": 4,
-    "F5": 3.5,
-    "E5": 3,
-    "D5": 2.5,
-    "C5": 2,
-    "B4": 1.5,
-    "A4": 1,
-    "G4": 0.5,
-    "F4": 0,
-    "E4": -0.5,
-    "D4": -1,
-    "C4": -1.5,
-    "B3": -2,
-    "A3": -2.5,
-    "REST": null  // 休符
-  };
-
-  // ヘ音記号での音符位置（F3が第4線）
-  const bassNotePositions = {
-    "E4": 5.5,
-    "D4": 5,
-    "C4": 4.5,
-    "B3": 4,
-    "A3": 3.5,
-    "G3": 3,
-    "F3": 2.5,   // 第4線
-    "E3": 2,
-    "D3": 1.5,
-    "C3": 1,
-    "B2": 0.5,
-    "A2": 0,
-    "G2": -0.5,
-    "F2": -1,
-    "E2": -1.5,
-    "D2": -2,
-    "C2": -2.5,
-    "REST": null  // 休符
-  };
-
-  // 音域リスト
-  const trebleNotes = ["C6","B5","A5","G5","F5","E5","D5","C5","B4","A4","G4","F4","E4","D4","C4","B3","A3","REST"];
-  const bassNotes = ["E4","D4","C4","B3","A3","G3","F3","E3","D3","C3","B2","A2","G2","F2","E2","D2","C2","REST"];
-
-  // 段組みレイアウト情報
-  let scoreLayout = {
-    barsCount: 1,
-    linesCount: 1,
-    barCapacity: 4,
-    barsPerLine: 4,
-    lineHeight: 180
-  };
-
-  // 音部記号変更時の処理
-  function updateClef() {
-    currentClef = clefSelect.value;
-    
-    // 情報表示を更新
-    if (currentClef === 'treble') {
-      clefInfo.textContent = 'ト音記号: 高音域用（フルート、バイオリン、ピアノ右手など）';
-      clefInfo.style.background = '#e3f2fd';
-    } else {
-      clefInfo.textContent = 'ヘ音記号: 低音域用（チェロ、ファゴット、ピアノ左手など）';
-      clefInfo.style.background = '#fce4ec';
-    }
-    
-    // 音高選択を更新
-    updatePitchOptions();
-    
-    // 再描画
-    syncAll();
-  }
-
-  // 音高選択肢を更新
-  function updatePitchOptions() {
-    const noteList = currentClef === 'treble' ? trebleNotes : bassNotes;
-    pitchSelect.innerHTML = '';
-    
-    noteList.forEach(note => {
-      const option = document.createElement('option');
-      option.value = note;
-      if (note === 'REST') {
-        option.textContent = '休符 / Rest';
-      } else {
-        option.textContent = note;
-      }
-      pitchSelect.appendChild(option);
-    });
-  }
-
-  // duration → 4分音符単位
-  function durationToUnits(d) {
-    switch (d) {
-      case "whole":     return 4;     // 全音符
-      case "half":      return 2;     // 2分音符
-      case "quarter":   return 1;     // 4分音符
-      case "eighth":    return 0.5;   // 8分音符
-      case "sixteenth": return 0.25;  // 16分音符
-      default:          return 1;
-    }
-  }
-
-  // 拍子から1小節あたりの 4分音符単位を計算
-  function computeBarCapacity() {
-    const ts = timeSigSelect.value || "4/4";
-    const parts = ts.split("/");
-    const num = parseInt(parts[0], 10);
-    const den = parseInt(parts[1], 10);
-    if (!num || !den) return 4;
-    return num * (4 / den);
-  }
-
-  // 音符ごとに「小節」「小節内位置」を割り振り
-  function computeLayout() {
-    const barCapacity = computeBarCapacity();
-    const barsPerLine = 4;
-    const lineHeight  = 180;
-
-    let barIndex   = 0;
-    let barPosUnit = 0;
-    let barsCount  = 1;
-
-    notes.forEach(note => {
-      const u = durationToUnits(note.duration);
-      if (barPosUnit + u > barCapacity + 1e-6) {
-        barIndex++;
-        barPosUnit = 0;
-      }
-      note._barIndex      = barIndex;
-      note._posInBarUnits = barPosUnit;
-      barPosUnit += u;
-      barsCount = Math.max(barsCount, barIndex + 1);
-    });
-
-    if (notes.length === 0) {
-      barsCount = 1;
-    }
-
-    const linesCount = Math.max(1, Math.ceil(barsCount / barsPerLine));
-
-    scoreLayout = {
-      barsCount,
-      linesCount,
-      barCapacity,
-      barsPerLine,
-      lineHeight
-    };
-  }
-
-  function drawStaff() {
-    const { linesCount, lineHeight, barsCount, barsPerLine } = scoreLayout;
-    const newHeight = Math.max(200, linesCount * lineHeight);
-    if (canvas.height !== newHeight) {
-      canvas.height = newHeight;
-    }
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 背景
-    ctx.fillStyle = "#fafafa";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const leftMargin   = 60;
-    const rightMargin  = canvas.width - 20;
-    const usableWidth  = rightMargin - leftMargin;
-    const barWidth     = usableWidth / barsPerLine;
-    const staffTopBase = 40;
-    const lineGap      = 10;
-
-    // 各段の五線
-    ctx.strokeStyle = "#444";
-    ctx.lineWidth = 1;
-
-    for (let line = 0; line < linesCount; line++) {
-      const lineOffsetY = line * lineHeight;
-      const staffTop = staffTopBase + lineOffsetY;
-
-      // 五線 5本
-      for (let i = 0; i < 5; i++) {
-        const y = staffTop + i * lineGap;
-        ctx.beginPath();
-        ctx.moveTo(leftMargin - 20, y);
-        ctx.lineTo(rightMargin, y);
-        ctx.stroke();
-      }
-
-      // 音部記号の描画
-      ctx.save();
-      ctx.font = "32px serif";
-      ctx.fillStyle = "#333";
-      
-      if (currentClef === 'treble') {
-        // ト音記号風のマーク（簡易版）
-        ctx.font = "36px serif";
-        ctx.fillText("𝄞", leftMargin - 35, staffTop + lineGap * 3);
-      } else {
-        // ヘ音記号風のマーク（簡易版）
-        ctx.font = "32px serif";
-        ctx.fillText("𝄢", leftMargin - 35, staffTop + lineGap * 1.5);
-        // F線の目印（2つの点）
-        ctx.fillStyle = "#333";
-        ctx.beginPath();
-        ctx.arc(leftMargin - 10, staffTop + lineGap * 1, 2, 0, Math.PI * 2);
-        ctx.arc(leftMargin - 10, staffTop + lineGap * 2, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-
-    // 小節線
-    ctx.strokeStyle = "#bbb";
-    ctx.lineWidth = 1;
-
-    for (let b = 1; b < barsCount; b++) {
-      const lineIndex  = Math.floor(b / barsPerLine);
-      const barInLine  = b % barsPerLine;
-      const lineOffsetY = lineIndex * lineHeight;
-      const staffTop   = staffTopBase + lineOffsetY;
-      const x          = leftMargin + barInLine * barWidth;
-
-      ctx.beginPath();
-      ctx.moveTo(x, staffTop - 10);
-      ctx.lineTo(x, staffTop + lineGap * 4 + 10);
-      ctx.stroke();
-    }
-
-    // 最後の小節線
-    const lastLineIndex   = Math.floor((barsCount - 1) / barsPerLine);
-    const lastLineOffsetY = lastLineIndex * lineHeight;
-    const lastStaffTop    = staffTopBase + lastLineOffsetY;
-
-    ctx.strokeStyle = "#666";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(rightMargin, lastStaffTop - 10);
-    ctx.lineTo(rightMargin, lastStaffTop + lineGap * 4 + 10);
-    ctx.stroke();
-
-    // 音符の描画
-    drawNotes();
-  }
-
-  function drawNotes() {
-    const { barCapacity, barsPerLine, lineHeight } = scoreLayout;
-    const notePositions = currentClef === 'treble' ? trebleNotePositions : bassNotePositions;
-
-    const leftMargin   = 60;
-    const rightMargin  = canvas.width - 20;
-    const usableWidth  = rightMargin - leftMargin;
-    const barWidth     = usableWidth / barsPerLine;
-    const staffTopBase = 40;
-    const lineGap      = 10;
-
-    ctx.fillStyle   = "#000";
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth   = 1;
-
-    notes.forEach((note) => {
-      const pitch   = note.pitch;
-      const barIdx  = note._barIndex || 0;
-      const posUnit = note._posInBarUnits || 0;
-      const position = notePositions[pitch];
-
-      if (position === undefined) return;
-
-      const lineIndex   = Math.floor(barIdx / barsPerLine);
-      const barInLine   = barIdx % barsPerLine;
-      const lineOffsetY = lineIndex * lineHeight;
-      const staffTop    = staffTopBase + lineOffsetY;
-
-      let frac = barCapacity > 0 ? posUnit / barCapacity : 0;
-      if (frac < 0) frac = 0;
-      if (frac > 1) frac = 1;
-
-      const innerFrac = 0.1 + frac * 0.8;
-      const xBarStart = leftMargin + barInLine * barWidth;
-      const x         = xBarStart + innerFrac * barWidth;
-
-      // 休符の処理
-      if (pitch === 'REST') {
-        const centerY = staffTop + 2 * lineGap;
-        ctx.save();
-        ctx.font = "24px serif";
-        ctx.fillStyle = "#333";
-        
-        // 休符記号（簡易版）
-        switch(note.duration) {
-          case 'whole':
-            ctx.fillRect(x - 6, centerY - 4, 12, 6);
-            break;
-          case 'half':
-            ctx.fillRect(x - 6, centerY - 2, 12, 4);
-            break;
-          case 'quarter':
-            ctx.font = "28px serif";
-            ctx.fillText("𝄽", x - 8, centerY + 6);
-            break;
-          case 'eighth':
-            ctx.font = "24px serif";
-            ctx.fillText("𝄾", x - 6, centerY + 4);
-            break;
-          case 'sixteenth':
-            ctx.font = "24px serif";
-            ctx.fillText("𝄿", x - 6, centerY + 4);
-            break;
-        }
-        ctx.restore();
-        return;
-      }
-
-      // 通常の音符処理
-      const firstLineY = staffTop + 4 * lineGap;
-      const y = firstLineY - position * lineGap;
-
-      // 補助線の描画
-      ctx.save();
-      ctx.strokeStyle = "#888";
-      ctx.lineWidth = 1;
-      
-      if (position < 0) {
-        for (let i = 0; i > position; i -= 1) {
-          const ledgerY = firstLineY - i * lineGap;
-          ctx.beginPath();
-          ctx.moveTo(x - 10, ledgerY);
-          ctx.lineTo(x + 10, ledgerY);
-          ctx.stroke();
-        }
-      }
-      
-      if (position > 4) {
-        for (let i = 5; i <= position; i += 1) {
-          const ledgerY = firstLineY - i * lineGap;
-          ctx.beginPath();
-          ctx.moveTo(x - 10, ledgerY);
-          ctx.lineTo(x + 10, ledgerY);
-          ctx.stroke();
-        }
-      }
-      
-      ctx.restore();
-
-      // 音符ヘッド
-      ctx.beginPath();
-      ctx.ellipse(x, y, 6, 4, 0, 0, Math.PI * 2);
-      
-      if (note.duration === "whole" || note.duration === "half") {
-        ctx.stroke();
-      } else {
-        ctx.fill();
-      }
-
-      // ステム
-      if (note.duration !== "whole") {
-        const stemUp = position < 2;
-        
-        ctx.beginPath();
-        if (stemUp) {
-          ctx.moveTo(x + 6, y);
-          ctx.lineTo(x + 6, y - 30);
-        } else {
-          ctx.moveTo(x - 6, y);
-          ctx.lineTo(x - 6, y + 30);
-        }
-        ctx.stroke();
-
-        // フラッグ
-        if (note.duration === "eighth" || note.duration === "sixteenth") {
-          ctx.beginPath();
-          if (stemUp) {
-            ctx.moveTo(x + 6, y - 30);
-            ctx.quadraticCurveTo(x + 16, y - 28, x + 10, y - 18);
-          } else {
-            ctx.moveTo(x - 6, y + 30);
-            ctx.quadraticCurveTo(x - 16, y + 28, x - 10, y + 18);
-          }
-          ctx.stroke();
-        }
-        if (note.duration === "sixteenth") {
-          ctx.beginPath();
-          if (stemUp) {
-            ctx.moveTo(x + 6, y - 25);
-            ctx.quadraticCurveTo(x + 16, y - 23, x + 10, y - 13);
-          } else {
-            ctx.moveTo(x - 6, y + 25);
-            ctx.quadraticCurveTo(x - 16, y + 23, x - 10, y + 13);
-          }
-          ctx.stroke();
-        }
-      }
-    });
-  }
-
-  function updateNotesTable() {
-    notesTableBody.innerHTML = "";
-    notes.forEach((note, index) => {
-      const tr = document.createElement('tr');
-
-      const tdIndex = document.createElement('td');
-      tdIndex.textContent = index + 1;
-
-      const tdPitch = document.createElement('td');
-      tdPitch.textContent = note.pitch === 'REST' ? '休符' : note.pitch;
-
-      const tdDur = document.createElement('td');
-      tdDur.textContent = note.duration;
-
-      const tdActions = document.createElement('td');
-      const delBtn = document.createElement('button');
-      delBtn.textContent = "削除";
-      delBtn.className = "danger";
-      delBtn.onclick = () => {
-        notes.splice(index, 1);
-        syncAll();
-      };
-      tdActions.appendChild(delBtn);
-
-      tr.appendChild(tdIndex);
-      tr.appendChild(tdPitch);
-      tr.appendChild(tdDur);
-      tr.appendChild(tdActions);
-
-      notesTableBody.appendChild(tr);
-    });
-  }
-
-  function updateJsonOutput() {
-    const data = {
-      clef: currentClef,
-      tempo: parseInt(tempoInput.value, 10) || 120,
-      timeSignature: timeSigSelect.value,
-      notes: notes.map(n => ({
-        pitch: n.pitch,
-        duration: n.duration
-      }))
-    };
-    jsonOutput.value = JSON.stringify(data, null, 2);
-  }
-
-  function syncAll() {
-    computeLayout();
-    updateNotesTable();
-    updateJsonOutput();
-    drawStaff();
-  }
-
-  // イベント設定
-  clefSelect.addEventListener('change', updateClef);
-  
-  addNoteBtn.addEventListener('click', () => {
-    const pitch = pitchSelect.value;
-    const duration = durationSelect.value;
-    notes.push({ pitch, duration });
-    syncAll();
-  });
-
-  clearNotesBtn.addEventListener('click', () => {
-    if (notes.length === 0) return;
-    if (!confirm("全ての音符を削除しますか？")) return;
-    notes = [];
-    syncAll();
-  });
-
-  tempoInput.addEventListener('change', syncAll);
-  timeSigSelect.addEventListener('change', syncAll);
-
-  copyJsonBtn.addEventListener('click', () => {
-    jsonOutput.select();
-    document.execCommand('copy');
-    copyJsonBtn.textContent = "コピーしました！";
-    setTimeout(() => {
-      copyJsonBtn.textContent = "JSON をコピー / Copy JSON";
-    }, 1200);
-  });
-
-  // JSON ダウンロード
-  downloadJsonBtn.addEventListener('click', () => {
-    const data = jsonOutput.value;
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `score_${currentClef}_${new Date().getTime()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  // JSON 読み込み
-  loadJsonBtn.addEventListener("click", () => {
-    jsonFileInput.value = "";
-    jsonFileInput.click();
-  });
-
-  jsonFileInput.addEventListener("change", () => {
-    const file = jsonFileInput.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target.result);
-
-        if (!data.notes || !Array.isArray(data.notes)) {
-          alert("JSON に 'notes' 配列が見つかりません。");
-          return;
-        }
-
-        // 音部記号を設定
-        if (data.clef) {
-          clefSelect.value = data.clef;
-          updateClef();
-        }
-
-        tempoInput.value = data.tempo || 120;
-        if (data.timeSignature) {
-          timeSigSelect.value = data.timeSignature;
-        } else {
-          timeSigSelect.value = "4/4";
-        }
-
-        notes = data.notes.map(n => ({
-          pitch: n.pitch,
-          duration: n.duration
-        }));
-
-        syncAll();
-        alert("JSON を読み込みました！");
-      } catch (err) {
-        console.error(err);
-        alert("JSON の読み込みに失敗しました。");
-      }
-    };
-
-    reader.readAsText(file);
-  });
-
-  // 初期設定
-  updateClef();
-  syncAll();
-</script>
+  <script src="app.js"></script>
 </body>
 </html>
