@@ -218,7 +218,7 @@
 		<div>
 			<h1>キーボード楽譜エディタ（和音強化版）</h1>
 			<div class="subtitle">
-				⚡ 音名+オクターブで音符挿入 | Shift+数字で和音追加 | Hキーで和音モード切替
+				⚡ 音名+オクターブで音符 | Rキーで休符 | Shift+数字で和音 | Hキーで和音モード
 			</div>
 		</div>
 
@@ -277,6 +277,12 @@
 					2. <code>H</code>キー: 和音モードON/OFF（ONの間は全て和音）
 				</div>
 				
+				<div class="instruction-highlight" style="background: rgba(250, 204, 21, 0.1); border-color: rgba(250, 204, 21, 0.3);">
+					<b>🎵 休符の入力方法：</b><br>
+					1. <code>R</code>キー: 現在の音価で休符を挿入<br>
+					2. <code>Shift+1〜5</code>: 指定した音価で休符を挿入
+				</div>
+				
 				<p>
 					<b>■ 音の指定：</b><br>
 					・<code>c d e f g a b</code> → 音名ペンディング<br>
@@ -285,7 +291,8 @@
 
 					<b>■ 音価/休符：</b><br>
 					・<code>1</code>〜<code>5</code> (全〜16分) → 音価設定<br>
-					・<code>Shift+1〜5</code> → 対応する休符を挿入<br><br>
+					・<code>R</code> → <b style="color: #facc15;">休符を挿入</b>（現在の音価）<br>
+					・<code>Shift+1〜5</code> → 指定音価で休符を挿入<br><br>
 
 					<b>■ 連結・装飾：</b><br>
 					・<code>T</code> → タイ トグル<br>
@@ -647,7 +654,7 @@ function renderEventList() {
 		} else if (ev.type === "rest") {
 			const durLabel = DUR_INFO[ev.duration].jp;
 			const dots = ev.dots > 0 ? "." : "";
-			contentSpan.textContent = `休符 ${durLabel}${dots}`;
+			contentSpan.innerHTML = `<b style="color: #facc15;">休符</b> ${durLabel}${dots}`;
 		} else if (ev.type === "bar") {
 			contentSpan.textContent = "小節線";
 		} else if (ev.type === "final-bar") {
@@ -721,10 +728,12 @@ document.addEventListener("keydown", (e) => {
 	}
 	// 数字キー処理
 	else if (key >= "0" && key <= "9") {
+		const n = parseInt(key, 10);
+		
 		// ペンディング中の音名がある場合
 		if (pendingStep) {
 			e.preventDefault();
-			const octave = parseInt(key, 10);
+			const octave = n;
 			
 			// Shiftキーが押されている場合、または和音モードの場合は和音として追加
 			const isChord = e.shiftKey || chordMode;
@@ -734,18 +743,17 @@ document.addEventListener("keydown", (e) => {
 			pendingOctave = null;
 			// addNoteOrModifyPitch内で render & updateStatus しているので return
 			return;
-		} else {
-			pendingStep = null;
-			pendingOctave = null;
 		}
-
+		
 		// 通常フェーズ → 音価/休符
-		const n = parseInt(key, 10);
+		// 1〜5の場合のみ処理
 		if (n >= 1 && n <= 5) {
 			e.preventDefault();
 			if (e.shiftKey) {
+				// Shift+1〜5 で休符を挿入
 				addRest(DUR_ORDER[n - 1]);
 			} else {
+				// 1〜5 で音価を設定
 				setDurationByDigit(n);
 			}
 		} else {
@@ -756,6 +764,11 @@ document.addEventListener("keydown", (e) => {
 	else if (key === " " || key === "n") {
 		e.preventDefault();
 		addNoteCurrent();
+	}
+	// R → 休符挿入
+	else if (key === "r") {
+		e.preventDefault();
+		addRest(curDuration);
 	}
 	// タイ・スラー
 	else if (key === "t") {
@@ -823,10 +836,6 @@ document.addEventListener("keydown", (e) => {
 	} else {
 		updateRequired = false;
 	}
-
-	// ここまで来たら pending は解除
-	pendingStep = null;
-	pendingOctave = null;
 
 	if (updateRequired) {
 		renderEventList();
@@ -1053,16 +1062,16 @@ downloadBtn.addEventListener("click", () => {
 });
 
 clearBtn.addEventListener("click", () => {
-	if (confirm("全てのイベントを削除しますか？")) {
-		events = [];
-		selected = -1;
-		pendingStep = null;
-		pendingOctave = null;
-		chordMode = false;
-		renderEventList();
-		updateStatus();
-		scheduleOSMDRerender();
-	}
+	// confirm() は使用せず、コンソールに警告のみ
+	console.warn("全削除が実行されました。");
+	events = [];
+	selected = -1;
+	pendingStep = null;
+	pendingOctave = null;
+	chordMode = false;
+	renderEventList();
+	updateStatus();
+	scheduleOSMDRerender();
 });
 
 /* ============================
