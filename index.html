@@ -1,134 +1,39 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>MusicXML エディタ（OSMD + クリック/矢印選択）</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #222;
-      color: #eee;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: stretch;
-    }
-
-    .app {
-      width: 100%;
-      max-width: 1200px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .score-panel {
-      background: #333;
-      border-radius: 8px;
-      padding: 8px 8px 0;
-      display: flex;
-      flex-direction: column;
-      min-height: 400px;
-    }
-
-    .score-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 4px 8px;
-      font-size: 14px;
-    }
-
-    .score-toolbar input[type="file"] {
-      font-size: 12px;
-    }
-
-    .score-info {
-      margin-left: auto;
-      font-size: 12px;
-      opacity: 0.8;
-    }
-
-    .score-view {
-      flex: 1;
-      overflow-y: auto; /* ← これが上下スクロールバー */
-      background: #fff;
-      border-radius: 6px 6px 0 0;
-      padding: 8px;
-    }
-
-    #osmd-container {
-      min-height: 300px;
-    }
-
-    .hint-bar {
-      background: #444;
-      color: #ddd;
-      font-size: 12px;
-      padding: 6px 8px;
-      border-radius: 0 0 6px 6px;
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .keyboard-panel {
-      background: #333;
-      border-radius: 8px;
-      padding: 8px;
-    }
-
-    .keyboard-panel h2 {
-      font-size: 14px;
-      margin-bottom: 4px;
-    }
-
-    .keyboard-panel img {
-      max-width: 100%;
-      height: auto;
-      display: block;
-      border-radius: 4px;
-      background: #222;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Keyboard MusicXML Composer</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        textarea { width: 100%; height: 150px; margin-bottom: 10px; font-size: 16px; }
+        #output { width: 100%; height: 300px; background: #f0f0f0; padding: 10px; border: 1px solid #ccc; white-space: pre-wrap; font-family: monospace; }
+        .key-info { margin-top: 20px; padding: 10px; border: 1px dashed #aaa; }
+    </style>
 </head>
 <body>
-  <div class="app">
-    <div class="score-panel">
-      <div class="score-toolbar">
-        <label>
-          MusicXML 読み込み:
-          <input type="file" id="musicxmlInput" accept=".xml,.musicxml,.mxl">
-        </label>
-        <div class="score-info" id="noteCountInfo">未読込</div>
-      </div>
-
-      <div class="score-view" id="scoreScroll">
-        <div id="osmd-container"></div>
-      </div>
-
-      <div class="hint-bar">
-        <div>
-          ▶ 操作: クリックで音符選択 / ← → で前後の音符へ移動
-        </div>
-        <div>
-          選択中の音符は<strong>赤色</strong>で表示
-        </div>
-      </div>
+    <h1>🎵 キーボード楽譜入力</h1>
+    <p>キーボードで音符を入力してください。 (例: 4c4, 5d4+)</p>
+    <div class="key-info">
+        <p><strong>主な入力規則:</strong></p>
+        <ul>
+            <li>**音符の長さ**: **4** (8分音符), **5** (4分音符), **6** (2分音符)</li>
+            <li>**音高**: **c, d, e, f, g, a, b**</li>
+            <li>**オクターブ**: **c4, d5** のように音高の直後に入力</li>
+            <li>**変化記号**: **+** (シャープ), **-** (フラット)</li>
+            <li>**音の追加 (確定)**: **Space**</li>
+            <li>**最後の音の削除**: **Backspace** (※このデモでは機能していません)</li>
+        </ul>
     </div>
+    <textarea id="inputArea" placeholder="ここに音符を入力"></textarea>
+    <button onclick="processInput()">音符を処理</button>
+    <button onclick="generateMusicXML()">MusicXMLを書き出し</button>
 
-    <div class="keyboard-panel">
-      <h2>キーボード割り当てチートシート（画像差し替え可）</h2>
-      <!-- ここにさっきのキーボード画像を置く。ファイル名は好きに変えてOK -->
-      <img src="keyboard_cheatsheet.png" alt="Keyboard cheat sheet">
-    </div>
-  </div>
+    <h2>🎼 内部データ</h2>
+    <pre id="internalData"></pre>
 
-  <!-- OSMD 本体（最新版 1.9 系） -->
-  <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.9.0/build/opensheetmusicdisplay.min.js"></script>
-  <script src="app.js"></script>
+    <h2>📝 MusicXML 出力 (断片)</h2>
+    <pre id="output"></pre>
+
+    <script src="app.js"></script>
 </body>
 </html>
