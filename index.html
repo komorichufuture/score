@@ -1,39 +1,1030 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>Keyboard MusicXML Composer</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; }
-        textarea { width: 100%; height: 150px; margin-bottom: 10px; font-size: 16px; }
-        #output { width: 100%; height: 300px; background: #f0f0f0; padding: 10px; border: 1px solid #ccc; white-space: pre-wrap; font-family: monospace; }
-        .key-info { margin-top: 20px; padding: 10px; border: 1px dashed #aaa; }
-    </style>
+	<meta charset="UTF-8" />
+	<title>キーボード楽譜エディタ + OSMD (強化版)</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+	<!-- OSMD CDN -->
+	<script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.6/build/opensheetmusicdisplay.min.js"></script>
+
+	<style>
+		/* Tailwind CSS の代わりとして、以前のスタイルを維持しつつ、ダークテーマを強化 */
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+		body {
+			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			background: #020617;
+			color: #e5e7eb;
+			padding: 16px;
+		}
+		.app {
+			max-width: 1024px;
+			margin: 0 auto;
+			background: #020617;
+			border-radius: 16px;
+			border: 1px solid #1e293b;
+			padding: 16px;
+			display: flex;
+			flex-direction: column;
+			gap: 16px;
+		}
+		h1 {
+			text-align: center;
+			font-size: 1.3rem;
+			margin-bottom: 4px;
+		}
+		.subtitle {
+			text-align: center;
+			font-size: 0.85rem;
+			opacity: 0.8;
+		}
+
+		/* OSMD エリア */
+		.osmd-panel {
+			background: #0b1120;
+			border-radius: 12px;
+			border: 1px solid #1e293b;
+			padding: 10px;
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+		.osmd-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			font-size: 0.9rem;
+		}
+		#osmd-container {
+			background: #ffffff;
+			border-radius: 8px;
+			padding: 8px;
+			max-height: 360px;
+			overflow: auto;
+		}
+		.osmd-hint {
+			font-size: 0.8rem;
+			opacity: 0.8;
+		}
+
+		.status-bar {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			padding: 8px;
+			background: #0b1120;
+			border-radius: 12px;
+			border: 1px solid #1e293b;
+			font-size: 0.85rem;
+		}
+		.status-item {
+			background: #111827;
+			border-radius: 999px;
+			border: 1px solid #1f2937;
+			padding: 4px 10px;
+		}
+		.status-label {
+			opacity: 0.75;
+			margin-right: 4px;
+		}
+		.status-value {
+			font-weight: 600;
+		}
+		.pending {
+			color: #facc15;
+			font-weight: 600;
+		}
+		.chord {
+			color: #38bdf8;
+			font-weight: 600;
+		}
+
+		.layout {
+			display: grid;
+			grid-template-columns: 1.1fr 1.1fr;
+			gap: 14px;
+		}
+		@media (max-width: 860px) {
+			.layout {
+				grid-template-columns: 1fr;
+			}
+		}
+
+		.panel {
+			background: #0b1120;
+			border-radius: 12px;
+			border: 1px solid #1e293b;
+			padding: 10px;
+			font-size: 0.86rem;
+		}
+		.panel h2 {
+			font-size: 1rem;
+			margin-bottom: 6px;
+			border-bottom: 1px solid #1f2937;
+			padding-bottom: 4px;
+		}
+		.panel p {
+			line-height: 1.5;
+		}
+		code {
+			font-family: "JetBrains Mono", "Fira Code", monospace;
+			background: #020617;
+			padding: 1px 4px;
+			border-radius: 4px;
+			font-size: 0.80rem;
+		}
+
+		.event-list {
+			list-style: none;
+			max-height: 340px;
+			overflow-y: auto;
+			font-size: 0.86rem;
+			margin-top: 4px;
+		}
+		.event-item {
+			padding: 4px 6px;
+			border-radius: 6px;
+			background: rgba(148, 163, 184, 0.1);
+			margin-bottom: 4px;
+			cursor: pointer;
+			display: flex;
+			gap: 6px;
+			align-items: center;
+		}
+		.event-item.selected {
+			background: rgba(250, 204, 21, 0.18);
+			box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.8);
+		}
+		.event-index {
+			opacity: 0.7;
+			font-size: 0.75rem;
+			min-width: 30px;
+		}
+		.event-meta {
+			font-size: 0.75rem;
+			color: #9ca3af;
+		}
+
+		.btn-row {
+			margin-top: 8px;
+			display: flex;
+			justify-content: flex-end;
+			gap: 8px;
+		}
+		button {
+			border: none;
+			border-radius: 999px;
+			padding: 7px 14px;
+			font-size: 0.9rem;
+			font-weight: 600;
+			cursor: pointer;
+		}
+		.btn-primary {
+			background: #22c55e;
+			color: #022c22;
+		}
+		.btn-secondary {
+			background: #111827;
+			color: #e5e7eb;
+			border: 1px solid #374151;
+		}
+	</style>
 </head>
 <body>
-    <h1>🎵 キーボード楽譜入力</h1>
-    <p>キーボードで音符を入力してください。 (例: 4c4, 5d4+)</p>
-    <div class="key-info">
-        <p><strong>主な入力規則:</strong></p>
-        <ul>
-            <li>**音符の長さ**: **4** (8分音符), **5** (4分音符), **6** (2分音符)</li>
-            <li>**音高**: **c, d, e, f, g, a, b**</li>
-            <li>**オクターブ**: **c4, d5** のように音高の直後に入力</li>
-            <li>**変化記号**: **+** (シャープ), **-** (フラット)</li>
-            <li>**音の追加 (確定)**: **Space**</li>
-            <li>**最後の音の削除**: **Backspace** (※このデモでは機能していません)</li>
-        </ul>
-    </div>
-    <textarea id="inputArea" placeholder="ここに音符を入力"></textarea>
-    <button onclick="processInput()">音符を処理</button>
-    <button onclick="generateMusicXML()">MusicXMLを書き出し</button>
+	<div class="app">
+		<div>
+			<h1>キーボード楽譜エディタ（和音・タイ・スラー対応）</h1>
+			<div class="subtitle">
+				音名+オクターブで音符挿入。Shiftキーを押しながらオクターブ入力で和音追加。
+			</div>
+		</div>
 
-    <h2>🎼 内部データ</h2>
-    <pre id="internalData"></pre>
+		<!-- OSMD パネル -->
+		<section class="osmd-panel">
+			<div class="osmd-header">
+				<span>OSMD 譜面プレビュー</span>
+				<span class="osmd-hint">※ キーボードで編集すると数百ms後に自動更新</span>
+			</div>
+			<div id="osmd-container">
+				MusicXML から譜面を生成中…
+			</div>
+		</section>
 
-    <h2>📝 MusicXML 出力 (断片)</h2>
-    <pre id="output"></pre>
+		<!-- ステータス -->
+		<div class="status-bar">
+			<div class="status-item">
+				<span class="status-label">現在音高:</span>
+				<span id="statusPitch" class="status-value">C4</span>
+			</div>
+			<div class="status-item">
+				<span class="status-label">音価:</span>
+				<span id="statusDuration" class="status-value">quarter</span>
+			</div>
+			<div class="status-item">
+				<span class="status-label">臨時記号:</span>
+				<span id="statusAccidental" class="status-value">なし</span>
+			</div>
+			<div class="status-item">
+				<span class="status-label">イベント数:</span>
+				<span id="statusCount" class="status-value">0</span>
+			</div>
+			<div class="status-item">
+				<span class="status-label">選択:</span>
+				<span id="statusSelected" class="status-value">なし</span>
+			</div>
+			<div class="status-item">
+				<span class="status-label">入力状態:</span>
+				<span id="statusPending" class="status-value">通常</span>
+			</div>
+		</div>
 
-    <script src="app.js"></script>
+		<!-- 下段レイアウト -->
+		<div class="layout">
+			<!-- 左：キーマップ -->
+			<section class="panel">
+				<h2>キーボード操作（強化版）</h2>
+				<p>
+					<b>■ 音の指定：</b><br>
+					・<code>c d e f g a b</code> → 音名ペンディング<br>
+					・続けて <code>0〜8</code> → **単音挿入/変更** (例: c3)<br>
+					・続けて <code>Shift+0〜8</code> → **和音として追加** (例: Shift+3 で和音)<br><br>
+
+					<b>■ 音価/休符：</b><br>
+					・<code>1</code>〜<code>5</code> (全〜16分) → 音価設定（選択中の音符・休符に反映）<br>
+					・<code>Shift+1〜5</code> → 対応する休符を挿入<br><br>
+
+					<b>■ 連結・装飾：</b><br>
+					・<code>T</code> → **タイ** トグル (選択中のみ: start / stop)<br>
+					・<code>S</code> → **スラー** トグル (選択中のみ: start / stop)<br>
+					・<code>.</code> → 付点トグル<br><br>
+
+					<b>■ その他：</b><br>
+					・<code>N</code> / <code>Space</code> → 現在設定で音符を1つ挿入（単音）<br>
+					・<code>#</code> / <code>b</code> → ♯ / ♭ (選択中の音符に適用)<br>
+					・<code>+</code> / <code>-</code> → 音高を上下 (選択中の音符)<br>
+					・<code>|</code> → 小節線（連続で <code>||</code> は終止線）<br>
+					・← / → → イベント選択移動<br>
+					・Backspace / Delete → 選択中イベント削除
+				</p>
+				<p style="margin-top:6px;font-size:0.78rem;opacity:0.8;">
+					※ 和音は直前の音符と同じタイミングで挿入されます。
+					※ タイ・スラーは「開始」と「終了」を同じ音符で設定しないでください。
+				</p>
+			</section>
+
+			<!-- 右：イベント一覧 -->
+			<section class="panel">
+				<h2>イベント一覧 &amp; MusicXML</h2>
+				<ul id="eventList" class="event-list"></ul>
+				<div class="btn-row">
+					<button id="clearBtn" class="btn-secondary" type="button">全削除</button>
+					<button id="downloadBtn" class="btn-primary" type="button">MusicXML ダウンロード</button>
+				</div>
+			</section>
+		</div>
+	</div>
+
+<script>
+/* ============================
+	内部データ構造とユーティリティ
+	============================ */
+
+// C0〜B8 までの白鍵
+const PITCHES = [];
+for (let octave = 0; octave <= 8; octave++) {
+	for (const step of ["C", "D", "E", "F", "G", "A", "B"]) {
+		PITCHES.push({ step, octave });
+	}
+}
+
+// ある step/octave のインデックス
+function pitchIndexFor(step, octave) {
+	for (let i = 0; i < PITCHES.length; i++) {
+		if (PITCHES[i].step === step && PITCHES[i].octave === octave) return i;
+	}
+	if (octave < 0) return 0;
+	if (octave > 8) return PITCHES.length - 1;
+	return 0;
+}
+
+function pitchLabel(idx, alter) {
+	const base = PITCHES[idx];
+	const acc = alter === 1 ? "#" : alter === -1 ? "b" : "";
+	return base.step + acc + base.octave;
+}
+
+// 音価テーブル
+const DIV = 8; // quarter = 8
+const DUR_INFO = {
+	whole:	 { xml: "whole",	jp: "全",	div: DIV * 4 },
+	half:	 { xml: "half",	 jp: "2分",	div: DIV * 2 },
+	quarter: { xml: "quarter", jp: "4分",	div: DIV },
+	eighth:	 { xml: "eighth",	jp: "8分",	div: DIV / 2 },
+	"16th":	 { xml: "16th",	jp: "16分", div: DIV / 4 }
+};
+const DUR_ORDER = ["whole", "half", "quarter", "eighth", "16th"];
+
+/* ============================
+	状態
+	============================ */
+
+let curPitchIdx = pitchIndexFor("C", 4);
+let curDuration = "quarter";
+let curAlter = 0;
+let curDots = 0;
+
+/**
+ * events: {
+ * type: "note" | "rest" | "bar" | "final-bar",
+ * duration: string,
+ * dots: number,
+ * isChord: boolean, // 和音として前の音符と同じタイミングで演奏されるか (noteのみ)
+ * ties: string[], // "start", "stop" (noteのみ)
+ * slurs: string[], // "start", "stop" (noteのみ)
+ * restOctave: number // 休符の表示位置 (restのみ)
+ * }
+ */
+let events = [];
+let selected = -1;
+let lastBarKey = false;
+
+let pendingStep = null;	 // "C"〜"B" or null
+let pendingOctave = null; // 0〜8 or null
+
+// OSMD 関連
+let osmd = null;
+let osmdReady = false;
+let osmdRenderTimer = null;
+
+/* ============================
+	DOM 参照
+	============================ */
+
+const stPitch = document.getElementById("statusPitch");
+const stDur = document.getElementById("statusDuration");
+const stAcc = document.getElementById("statusAccidental");
+const stCount = document.getElementById("statusCount");
+const stSel = document.getElementById("statusSelected");
+const stPending = document.getElementById("statusPending");
+const eventListEl = document.getElementById("eventList");
+const clearBtn = document.getElementById("clearBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+
+/* ============================
+	状態表示
+	============================ */
+
+function describeEvent(ev) {
+	let description = "";
+
+	if (ev.type === "note") {
+		const d = DUR_INFO[ev.duration];
+		description += pitchLabel(ev.pitchIdx, ev.alter) + (ev.isChord ? " (和音)" : "") + " " + d.jp + "音符";
+	} else if (ev.type === "rest") {
+		const d = DUR_INFO[ev.duration];
+		description += "休符 " + d.jp;
+	} else if (ev.type === "bar") {
+		description += "|";
+	} else if (ev.type === "final-bar") {
+		description += "||";
+	}
+
+	let meta = [];
+	if (ev.dots) meta.push("付点");
+	if (ev.ties && ev.ties.length) meta.push("タイ: " + ev.ties.join("/"));
+	if (ev.slurs && ev.slurs.length) meta.push("スラー: " + ev.slurs.join("/"));
+
+	return { description, meta: meta.join(", ") };
+}
+
+function updateStatus() {
+	stPitch.textContent = pitchLabel(curPitchIdx, curAlter);
+	stDur.textContent = curDuration;
+	stAcc.textContent = curAlter === 1 ? "♯" : curAlter === -1 ? "♭" : "なし";
+	stCount.textContent = events.length;
+
+	if (selected >= 0 && selected < events.length) {
+		stSel.textContent = describeEvent(events[selected]).description;
+	} else {
+		stSel.textContent = "なし";
+	}
+
+	if (pendingStep !== null && pendingOctave === null) {
+		stPending.innerHTML = `<span class="pending">${pendingStep} + オクターブ待ち</span>`;
+	} else {
+		stPending.textContent = "通常";
+	}
+}
+
+function renderEventList() {
+	eventListEl.innerHTML = "";
+	events.forEach((ev, i) => {
+		const li = document.createElement("li");
+		li.className = "event-item";
+		if (i === selected) li.classList.add("selected");
+		if (ev.isChord) li.classList.add("chord");
+
+		const desc = describeEvent(ev);
+
+		const idxSpan = document.createElement("span");
+		idxSpan.className = "event-index";
+		idxSpan.textContent = "#" + i;
+
+		const textSpan = document.createElement("span");
+		textSpan.textContent = desc.description;
+
+		const metaSpan = document.createElement("span");
+		metaSpan.className = "event-meta";
+		metaSpan.textContent = desc.meta;
+
+		li.appendChild(idxSpan);
+		li.appendChild(textSpan);
+		if (desc.meta) li.appendChild(metaSpan);
+
+		li.addEventListener("click", () => setSelected(i));
+		eventListEl.appendChild(li);
+	});
+}
+
+function setSelected(i) {
+	if (i < 0 || i >= events.length) {
+		selected = -1;
+	} else {
+		selected = i;
+		const ev = events[selected];
+		if (ev.type === "note") {
+			curPitchIdx = ev.pitchIdx;
+			curAlter = ev.alter;
+		}
+	}
+	renderEventList();
+	updateStatus();
+	scheduleOSMDRerender();
+}
+
+/* ============================
+	イベント挿入・編集
+	============================ */
+
+function insertEvent(ev) {
+	if (selected >= 0 && selected < events.length) {
+		events.splice(selected + 1, 0, ev);
+		setSelected(selected + 1);
+	} else {
+		events.push(ev);
+		setSelected(events.length - 1);
+	}
+}
+
+// 現在の設定（curPitchIdx, curAlter, curDuration, curDots）で単音を挿入
+function addNoteCurrent() {
+	const ev = {
+		type: "note",
+		pitchIdx: curPitchIdx,
+		alter: curAlter,
+		duration: curDuration,
+		dots: curDots,
+		isChord: false,
+		ties: [],
+		slurs: [],
+	};
+	insertEvent(ev);
+	curDots = 0;
+	pendingStep = null;
+	pendingOctave = null;
+}
+
+function addNoteOrModifyPitch(step, octave, isChord) {
+	const idx = pitchIndexFor(step, octave);
+
+	// 1. 選択中の音符があり、和音モードではない場合 -> 既存の音符の音高を変更
+	if (selected >= 0 && selected < events.length && !isChord) {
+		const ev = events[selected];
+		if (ev.type === "note") {
+			ev.pitchIdx = idx;
+			curPitchIdx = idx;
+			// alter は維持（# キーで設定）
+		}
+	}
+	// 2. 選択中の音符がなく、和音モードではない場合 -> 新規音符を挿入
+	else if (!isChord) {
+		curPitchIdx = idx;
+		const ev = {
+			type: "note",
+			pitchIdx: idx,
+			alter: curAlter,
+			duration: curDuration,
+			dots: curDots,
+			isChord: false,
+			ties: [],
+			slurs: [],
+		};
+		insertEvent(ev);
+	}
+	// 3. 和音モードの場合 (isChord === true) -> 新しい音符を直前に挿入
+	else {
+		curPitchIdx = idx;
+		const ev = {
+			type: "note",
+			pitchIdx: idx,
+			alter: curAlter,
+			duration: curDuration,
+			dots: curDots,
+			isChord: true, // ここが重要
+			ties: [],
+			slurs: [],
+		};
+		// 和音は選択中のイベントの直前に挿入する (直前が音符であること)
+		// シンプル化のため、常に最後のイベントが音符であればその和音として挿入
+		if (events.length > 0 && events[events.length - 1].type === "note") {
+			events.splice(events.length - 1, 0, ev); // 最後から2番目に挿入
+			setSelected(events.length - 1);
+		} else {
+			insertEvent(ev); // 直前が音符でなければ単音として挿入（フォールバック）
+			console.warn("和音は直前のイベントが音符である場合にのみ機能します。単音として挿入しました。");
+		}
+	}
+
+	curDots = 0;
+	pendingStep = null;
+	pendingOctave = null;
+	renderEventList();
+	updateStatus();
+	scheduleOSMDRerender();
+}
+
+function addRest(durationName) {
+	const ev = {
+		type: "rest",
+		duration: durationName,
+		dots: curDots,
+		restOctave: 4 // 休符の表示位置をC4基準に設定
+	};
+	insertEvent(ev);
+	curDots = 0;
+}
+
+function addBar(isFinal) {
+	const ev = { type: isFinal ? "final-bar" : "bar" };
+	insertEvent(ev);
+}
+
+function movePitch(delta) {
+	// 選択中の音符があればその音高を変更
+	if (selected >= 0 && selected < events.length) {
+		const ev = events[selected];
+		if (ev.type !== "note") return;
+		let idx = ev.pitchIdx + delta;
+		if (idx < 0) idx = 0;
+		if (idx >= PITCHES.length) idx = PITCHES.length - 1;
+		ev.pitchIdx = idx;
+		curPitchIdx = idx;
+	} else {
+		// 選択中の音符がなければ次の挿入のための音高を変更
+		let idx = curPitchIdx + delta;
+		if (idx < 0) idx = 0;
+		if (idx >= PITCHES.length) idx = PITCHES.length - 1;
+		curPitchIdx = idx;
+	}
+}
+
+function setDurationByDigit(n) {
+	const idx = n - 1;
+	if (idx < 0 || idx >= DUR_ORDER.length) return;
+	const name = DUR_ORDER[idx];
+	curDuration = name;
+
+	if (selected >= 0 && selected < events.length) {
+		const ev = events[selected];
+		if (ev.type === "note" || ev.type === "rest") {
+			ev.duration = name;
+		}
+	}
+}
+
+function setAccidental(kind) {
+	curAlter = kind === "sharp" ? 1 : kind === "flat" ? -1 : 0;
+	if (selected >= 0 && selected < events.length) {
+		const ev = events[selected];
+		if (ev.type === "note") {
+			ev.alter = curAlter;
+		}
+	}
+}
+
+function toggleDot() {
+	if (selected >= 0 && selected < events.length) {
+		const ev = events[selected];
+		if (ev.type === "note" || ev.type === "rest") {
+			ev.dots = ev.dots ? 0 : 1;
+		}
+	} else {
+		curDots = curDots ? 0 : 1;
+	}
+}
+
+function toggleConnection(type) { // type: "ties" or "slurs"
+	if (selected < 0 || selected >= events.length) return;
+	const ev = events[selected];
+	if (ev.type !== "note") return;
+
+	if (ev[type].includes("start")) {
+		// すでに start があれば stop に変更
+		ev[type] = ["stop"];
+	} else if (ev[type].includes("stop")) {
+		// すでに stop があれば削除
+		ev[type] = [];
+	} else {
+		// なければ start に設定
+		ev[type] = ["start"];
+	}
+}
+
+function deleteSelected() {
+	if (selected < 0 || selected >= events.length) return;
+	events.splice(selected, 1);
+	if (events.length === 0) {
+		selected = -1;
+	} else if (selected >= events.length) {
+		selected = events.length - 1;
+	}
+}
+
+/* ============================
+	キーボード入力
+	============================ */
+
+document.addEventListener("keydown", (e) => {
+	const tag = e.target.tagName;
+	if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+	const key = e.key.toLowerCase();
+	let updateRequired = true; // 描画更新が必要な変更があったか
+
+	// "|" 以外のキーが押されたら「二度押し検出フラグ」はリセット
+	if (key !== "|") lastBarKey = false;
+
+	// 音名ペンディング開始 (c d e f g a b)
+	if ("cdefgab".includes(key)) {
+		e.preventDefault();
+		pendingStep = key.toUpperCase();
+		pendingOctave = null;
+		updateStatus();
+		return;
+	}
+
+	// 数字：オクターブ確定フェーズ or 音価／休符
+	if (/^[0-9]$/.test(key)) {
+		// まずは pendingStep 存在時 → オクターブ確定 (単音/和音)
+		if (pendingStep !== null && pendingOctave === null) {
+			e.preventDefault();
+			const oct = parseInt(key, 10);
+			if (oct >= 0 && oct <= 8) {
+				const isChordMode = e.shiftKey;
+				pendingOctave = oct;
+				addNoteOrModifyPitch(pendingStep, pendingOctave, isChordMode);
+				// addNoteOrModifyPitch内で render & updateStatus しているので return
+				return;
+			} else {
+				pendingStep = null;
+				pendingOctave = null;
+			}
+		}
+
+		// 通常フェーズ → 音価/休符
+		const n = parseInt(key, 10);
+		if (n >= 1 && n <= 5) {
+			e.preventDefault();
+			if (e.shiftKey) {
+				addRest(DUR_ORDER[n - 1]);
+			} else {
+				setDurationByDigit(n);
+			}
+		} else {
+			updateRequired = false;
+		}
+	}
+	// N / Space → 現在設定で音符挿入
+	else if (key === " " || key === "n") {
+		e.preventDefault();
+		addNoteCurrent();
+	}
+	// タイ・スラー
+	else if (key === "t") {
+		e.preventDefault();
+		toggleConnection("ties");
+	}
+	else if (key === "s") {
+		e.preventDefault();
+		toggleConnection("slurs");
+	}
+	// 音高変更
+	else if (key === "+") {
+		e.preventDefault();
+		movePitch(+1);
+	}
+	else if (key === "-") {
+		e.preventDefault();
+		movePitch(-1);
+	}
+	// 小節線 | / ||
+	else if (key === "|") {
+		e.preventDefault();
+		if (lastBarKey) {
+			lastBarKey = false;
+			if (events.length > 0 && events[events.length - 1].type === "bar") {
+				events[events.length - 1].type = "final-bar";
+				setSelected(events.length - 1);
+			} else {
+				addBar(true);
+			}
+		} else {
+			addBar(false);
+			lastBarKey = true;
+		}
+	}
+	// 臨時記号
+	else if (key === "#") {
+		e.preventDefault();
+		setAccidental("sharp");
+	}
+	else if (key === "b") {
+		e.preventDefault();
+		setAccidental("flat");
+	}
+	// 付点
+	else if (key === ".") {
+		e.preventDefault();
+		toggleDot();
+	}
+	// 移動
+	else if (key === "arrowleft") {
+		e.preventDefault();
+		if (selected > 0) setSelected(selected - 1);
+		updateRequired = false; // setSelectedがrenderを呼ぶため
+	}
+	else if (key === "arrowright") {
+		e.preventDefault();
+		if (selected < events.length - 1) setSelected(selected + 1);
+		updateRequired = false;
+	}
+	// 削除
+	else if (key === "backspace" || key === "delete") {
+		e.preventDefault();
+		deleteSelected();
+	} else {
+		updateRequired = false;
+	}
+
+	// ここまで来たら pending は解除
+	pendingStep = null;
+	pendingOctave = null;
+
+	if (updateRequired) {
+		renderEventList();
+		updateStatus();
+		scheduleOSMDRerender();
+	} else {
+		updateStatus();
+	}
+});
+
+/* ============================
+	MusicXML 生成
+	============================ */
+
+function generateMusicXML() {
+	let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+	<part-list>
+		<score-part id="P1">
+			<part-name>Keyboard Editor</part-name>
+		</score-part>
+	</part-list>
+	<part id="P1">
+`;
+
+	let measureNumber = 1;
+	let open = false;
+
+	function openMeasure() {
+		xml += `	<measure number="${measureNumber}">
+`;
+		if (measureNumber === 1) {
+			// 初期設定 (4/4拍子、ハ長調、ト音記号)
+			xml += `	<attributes>
+			<divisions>${DIV}</divisions>
+			<key><fifths>0</fifths></key>
+			<time><beats>4</beats><beat-type>4</beat-type></time>
+			<clef><sign>G</sign><line>2</line></clef>
+		</attributes>
+`;
+		}
+		open = true;
+	}
+
+	function closeMeasure(isFinal) {
+		if (isFinal) {
+			xml += `	<barline location="right">
+			<bar-style>light-heavy</bar-style>
+		</barline>
+`;
+		}
+		xml += `	</measure>
+`;
+		open = false;
+		measureNumber++;
+	}
+
+	// イベントがない場合は全休符1小節を挿入
+	if (events.length === 0) {
+		openMeasure();
+		const d = DUR_INFO.whole;
+		xml += `	<note>
+		<rest/>
+		<duration>${d.div}</duration>
+		<type>${d.xml}</type>
+	</note>
+`;
+		closeMeasure(false);
+	} else {
+		openMeasure();
+		events.forEach((ev, i) => {
+			if (ev.type === "note") {
+				const base = PITCHES[ev.pitchIdx];
+				const info = DUR_INFO[ev.duration];
+				let dur = info.div;
+				if (ev.dots) dur += info.div / 2;
+
+				xml += `	<note>
+	`;
+				if (ev.isChord) {
+					xml += `<chord/>
+	`;
+				}
+				xml += `<pitch>
+			<step>${base.step}</step>
+	`;
+				if (ev.alter) {
+					xml += `		<alter>${ev.alter}</alter>
+	`;
+				}
+				xml += `		<octave>${base.octave}</octave>
+		</pitch>
+		<duration>${dur}</duration>
+		<type>${info.xml}</type>
+	`;
+				if (ev.dots) {
+					xml += `<dot/>
+	`;
+				}
+				if (ev.alter !== 0) {
+					xml += `<accidental>${ev.alter === 1 ? 'sharp' : 'flat'}</accidental>
+	`;
+				}
+
+				// タイ・スラー
+				if (ev.ties.length > 0 || ev.slurs.length > 0) {
+					xml += `<notations>
+	`;
+					ev.ties.forEach(t => {
+						xml += `<tied type="${t}"/>
+	`;
+					});
+					ev.slurs.forEach(s => {
+						xml += `<slur type="${s}" number="1"/>
+	`; // スラーは number を 1 で固定
+					});
+					xml += `</notations>
+	`;
+				}
+				
+				// MusicXML 3.1 では <tie> タグは <note> の直下に配置
+				ev.ties.forEach(t => {
+					xml += `<tie type="${t}"/>
+	`;
+				});
+				
+				xml += `</note>
+`;
+			} else if (ev.type === "rest") {
+				const info = DUR_INFO[ev.duration];
+				let dur = info.div;
+				if (ev.dots) dur += info.div / 2;
+
+				xml += `	<note>
+		<rest>
+	`;
+				// 休符のオクターブ指定（表示位置調整のため）
+				const restPitch = PITCHES[pitchIndexFor("B", ev.restOctave)]; // B を中央として使用
+				xml += `		<display-step>${restPitch.step}</display-step>
+		<display-octave>${restPitch.octave}</display-octave>
+	`;
+				xml += `	</rest>
+		<duration>${dur}</duration>
+		<type>${info.xml}</type>
+	`;
+				if (ev.dots) {
+					xml += `<dot/>
+	`;
+				}
+				xml += `</note>
+`;
+			} else if (ev.type === "bar" || ev.type === "final-bar") {
+				const isFinal = ev.type === "final-bar";
+				closeMeasure(isFinal);
+				if (!(isFinal && i === events.length - 1)) {
+					openMeasure();
+				}
+			}
+		});
+		if (open) closeMeasure(false);
+	}
+
+	xml += `	</part>
+</score-partwise>
+`;
+	return xml;
+}
+
+/* ============================
+	OSMD 初期化＆再描画
+	============================ */
+
+async function initOSMD() {
+	osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmd-container", {
+		autoResize: true,
+		drawTitle: false,
+		followCursor: false,
+		disableCursor: true,
+		drawingParameters: "compact", // コンパクトな描画
+	});
+	osmdReady = true;
+	// 初期の空譜
+	const xml = generateMusicXML();
+	try {
+		await osmd.load(xml);
+		osmd.render();
+		document.getElementById("osmd-container").textContent = ""; // 初期メッセージを削除
+	} catch (err) {
+		document.getElementById("osmd-container").textContent = "楽譜の読み込み中にエラーが発生しました。";
+		console.error("OSMD init error:", err);
+	}
+}
+
+function scheduleOSMDRerender() {
+	if (!osmdReady) return;
+	if (osmdRenderTimer) clearTimeout(osmdRenderTimer);
+	osmdRenderTimer = setTimeout(async () => {
+		const xml = generateMusicXML();
+		try {
+			await osmd.load(xml);
+			osmd.render();
+		} catch (err) {
+			console.error("OSMD render error:", err);
+			// エラー時は前の状態を維持
+		}
+	}, 250); // 軽くディレイして連続入力を吸収
+}
+
+/* ============================
+	ボタン処理
+	============================ */
+
+downloadBtn.addEventListener("click", () => {
+	const xml = generateMusicXML();
+	// MusicXMLのMIMEタイプ: application/vnd.recordare.musicxml+xml
+	const blob = new Blob([xml], { type: "application/vnd.recordare.musicxml+xml" });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = "score.musicxml";
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
+});
+
+clearBtn.addEventListener("click", () => {
+	// confirm() は使用せず、コンソールに警告のみ
+	console.warn("全削除が実行されました。");
+	events = [];
+	selected = -1;
+	pendingStep = null;
+	pendingOctave = null;
+	renderEventList();
+	updateStatus();
+	scheduleOSMDRerender();
+});
+
+/* ============================
+	初期化
+	============================ */
+
+renderEventList();
+updateStatus();
+window.onload = initOSMD;
+
+</script>
 </body>
 </html>
