@@ -1,290 +1,161 @@
-// ===== 基本設定 =====
+// グローバル状態
+let osmd = null;
+let allGraphicalNotes = [];   // GraphicalNote の配列
+let noteToIndex = new Map();  // Note オブジェクト → インデックス
+let selectedIndex = -1;
 
-// C4〜C6 までの白鍵だけをサポート（まずは最小セット）
-const PITCHES = [
-  { label: "C4", step: "C", alter: 0, octave: 4 },
-  { label: "D4", step: "D", alter: 0, octave: 4 },
-  { label: "E4", step: "E", alter: 0, octave: 4 },
-  { label: "F4", step: "F", alter: 0, octave: 4 },
-  { label: "G4", step: "G", alter: 0, octave: 4 },
-  { label: "A4", step: "A", alter: 0, octave: 4 },
-  { label: "B4", step: "B", alter: 0, octave: 4 },
-  { label: "C5", step: "C", alter: 0, octave: 5 },
-  { label: "D5", step: "D", alter: 0, octave: 5 },
-  { label: "E5", step: "E", alter: 0, octave: 5 },
-  { label: "F5", step: "F", alter: 0, octave: 5 },
-  { label: "G5", step: "G", alter: 0, octave: 5 },
-  { label: "A5", step: "A", alter: 0, octave: 5 },
-  { label: "B5", step: "B", alter: 0, octave: 5 },
-  { label: "C6", step: "C", alter: 0, octave: 6 },
-];
+window.addEventListener("DOMContentLoaded", () => {
+  const container = document.getElementById("osmd-container");
+  const fileInput = document.getElementById("musicxmlInput");
+  const info = document.getElementById("noteCountInfo");
 
-// MusicXML の <divisions> （4なら 4分音符 = 4, 2分 = 8, 全音符 = 16）
-const DIVISIONS = 4;
+  osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay(container, {
+    autoResize: true,
+    backend: "svg",
+    drawTitle: false,
+  });
 
-// 数字キー → 音価
-const DURATION_MAP = {
-  "1": { name: "whole", display: "whole (全音符)", divisions: 16 },
-  "2": { name: "half", display: "half (2分音符)", divisions: 8 },
-  "3": { name: "quarter", display: "quarter (4分音符)", divisions: 4 },
-  "4": { name: "eighth", display: "eighth (8分音符)", divisions: 2 },
-  "5": { name: "16th", display: "16th (16分音符)", divisions: 1 },
-};
+  fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-// ===== 状態 =====
+    const text = await file.text();
+    await osmd.load(text);
+    await osmd.render();
 
-let currentPitchIndex = 0;    // PITCHES の添字
-let currentDurationKey = "3"; // デフォルト：4分音符
+    buildNoteIndexMap();
+    info.textContent = `音符数: ${allGraphicalNotes.length}`;
+    if (allGraphicalNotes.length > 0) {
+      selectedIndex = 0;
+      highlightSelectedNote();
+    }
+  });
+
+  // 楽譜クリックで最寄りの音符を選択
+  const scrollView = document.getElementById("scoreScroll");
+  scrollView.addEventListener("click", handleScoreClick);
+
+  // 矢印キーで前後の音符に移動
+  document.addEventListener("keydown", (e) => {
+    if (!osmd || allGraphicalNotes.length === 0) return;
+
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (selectedIndex < allGraphicalNotes.length - 1) {
+        selectedIndex++;
+        highlightSelectedNote();
+        scrollNoteIntoView();
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (selectedIndex > 0) {
+        selectedIndex--;
+        highlightSelectedNote();
+        scrollNoteIntoView();
+      }
+    }
+  });
+});
 
 /**
- * ノート配列（入力された順）
- * 要素例:
- * {
- *   isRest: false,
- *   step: "C",
- *   alter: 0,
- *   octave: 4,
- *   durationName: "quarter",
- *   durationDivs: 4
- * }
+ * OSMD のカーソルを使って、譜面上のすべての GraphicalNote を列挙し、
+ * Note → index のマップを作る
  */
-let notes = [];
+function buildNoteIndexMap() {
+  allGraphicalNotes = [];
+  noteToIndex = new Map();
+  selectedIndex = -1;
 
-// ===== DOM 取得 =====
+  const cursor = osmd.cursor;
+  cursor.show();
+  cursor.resetIterator();
 
-const currentPitchEl = document.getElementById("currentPitch");
-const currentDurationEl = document.getElementById("currentDuration");
-const noteCountEl = document.getElementById("noteCount");
-const noteListEl = document.getElementById("noteList");
-const downloadXmlBtn = document.getElementById("downloadXmlBtn");
-const clearBtn = document.getElementById("clearBtn");
-
-// ===== 表示更新 =====
-
-function updateStatus() {
-  const pitch = PITCHES[currentPitchIndex];
-  currentPitchEl.textContent = pitch.label;
-
-  const durInfo = DURATION_MAP[currentDurationKey];
-  currentDurationEl.textContent = `${durInfo.name} (${durInfo.display.split(" ")[1] || ""})`;
-
-  noteCountEl.textContent = notes.length.toString();
-}
-
-function renderNoteList() {
-  noteListEl.innerHTML = "";
-
-  notes.forEach((note, index) => {
-    const li = document.createElement("li");
-    if (note.isRest) {
-      li.textContent = `Rest`;
-    } else {
-      li.textContent = `${note.step}${note.octave}`;
-    }
-    const tag = document.createElement("span");
-    tag.className = "note-tag";
-    tag.textContent = note.durationName;
-    li.appendChild(tag);
-
-    // 軽く「何番目か」の情報も出しておく
-    li.title = `index: ${index}`;
-
-    noteListEl.appendChild(li);
-  });
-
-  noteCountEl.textContent = notes.length.toString();
-}
-
-// ===== ノート追加・削除 =====
-
-function addNote(isRest) {
-  const durInfo = DURATION_MAP[currentDurationKey];
-  if (!durInfo) return;
-
-  const base = PITCHES[currentPitchIndex];
-
-  const note = {
-    isRest: isRest,
-    step: isRest ? null : base.step,
-    alter: isRest ? 0 : base.alter,
-    octave: isRest ? null : base.octave,
-    durationName: durInfo.name,
-    durationDivs: durInfo.divisions,
-  };
-
-  notes.push(note);
-  renderNoteList();
-}
-
-function deleteLastNote() {
-  if (notes.length === 0) return;
-  notes.pop();
-  renderNoteList();
-}
-
-// ===== MusicXML 生成 =====
-
-function generateMusicXML() {
-  // ヘッダ
-  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE score-partwise PUBLIC
-  "-//Recordare//DTD MusicXML 3.1 Partwise//EN"
-  "http://www.musicxml.org/dtds/partwise.dtd">
-<score-partwise version="3.1">
-  <part-list>
-    <score-part id="P1">
-      <part-name>Keyboard Notation Export</part-name>
-    </score-part>
-  </part-list>
-  <part id="P1">
-    <measure number="1">
-      <attributes>
-        <divisions>${DIVISIONS}</divisions>
-        <key>
-          <fifths>0</fifths>
-        </key>
-        <time>
-          <beats>4</beats>
-          <beat-type>4</beat-type>
-        </time>
-        <clef>
-          <sign>G</sign>
-          <line>2</line>
-        </clef>
-      </attributes>
-`;
-
-  // ノート列
-  notes.forEach((note) => {
-    if (note.isRest) {
-      xml += `      <note>
-        <rest/>
-        <duration>${note.durationDivs}</duration>
-        <type>${note.durationName}</type>
-      </note>
-`;
-    } else {
-      xml += `      <note>
-        <pitch>
-          <step>${note.step}</step>
-`;
-      if (note.alter && note.alter !== 0) {
-        xml += `          <alter>${note.alter}</alter>
-`;
+  let idx = 0;
+  while (!cursor.Iterator.EndReached) {
+    const gNotesHere = cursor.GNotesUnderCursor(); // GraphicalNote[]
+    for (const gNote of gNotesHere) {
+      allGraphicalNotes.push(gNote);
+      const note = gNote.sourceNote;
+      if (note && !noteToIndex.has(note)) {
+        noteToIndex.set(note, idx);
       }
-      xml += `          <octave>${note.octave}</octave>
-        </pitch>
-        <duration>${note.durationDivs}</duration>
-        <type>${note.durationName}</type>
-      </note>
-`;
+      idx++;
     }
-  });
-
-  // フッタ
-  xml += `    </measure>
-  </part>
-</score-partwise>
-`;
-
-  return xml;
-}
-
-// ===== ダウンロード処理 =====
-
-function downloadMusicXML() {
-  if (notes.length === 0) {
-    alert("ノートが 1 つもありません。N / R でノートを追加してから書き出してください。");
-    return;
+    cursor.next();
   }
 
-  const xml = generateMusicXML();
-  const blob = new Blob([xml], {
-    type: "application/vnd.recordare.musicxml+xml",
-  });
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "score.musicxml";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  cursor.hide();
 }
 
-// ===== キーボード入力 =====
+/**
+ * クリック位置から最寄りの GraphicalNote を取得し、selectedIndex を更新
+ */
+function handleScoreClick(event) {
+  if (!osmd || !osmd.GraphicSheet) return;
+  if (allGraphicalNotes.length === 0) return;
 
-function handleKeyDown(event) {
-  // 何かテキスト入力中の場合は邪魔しない
-  const tag = event.target.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  const scrollView = document.getElementById("scoreScroll");
+  const rect = scrollView.getBoundingClientRect();
 
-  const key = event.key;
+  // DOM座標（スクロールビュー左上基準）
+  const domX = event.clientX;
+  const domY = event.clientY;
 
-  switch (key) {
-    case "ArrowUp":
-      event.preventDefault();
-      if (currentPitchIndex < PITCHES.length - 1) {
-        currentPitchIndex++;
-        updateStatus();
-      }
-      break;
-    case "ArrowDown":
-      event.preventDefault();
-      if (currentPitchIndex > 0) {
-        currentPitchIndex--;
-        updateStatus();
-      }
-      break;
+  const PointF2D = opensheetmusicdisplay.PointF2D;
 
-    case "1":
-    case "2":
-    case "3":
-    case "4":
-    case "5":
-      currentDurationKey = key;
-      updateStatus();
-      break;
+  // DOM → SVG → OSMD 座標に変換
+  const domPoint = new PointF2D(domX, domY);
+  const svgPoint = osmd.GraphicSheet.domToSvg(domPoint);
+  const osmdPoint = osmd.GraphicSheet.svgToOsmd(svgPoint);
 
-    case "n":
-    case "N":
-      addNote(false);
-      break;
+  // クリック有効範囲（単位は OSMD 座標系）
+  const maxDist = new PointF2D(2.0, 5.0);
 
-    case "r":
-    case "R":
-      addNote(true);
-      break;
+  const gNote = osmd.GraphicSheet.GetNearestNote(osmdPoint, maxDist);
+  if (!gNote) return;
 
-    case "d":
-    case "D":
-      deleteLastNote();
-      break;
+  const note = gNote.sourceNote;
+  const idx = noteToIndex.get(note);
+  if (idx == null) return;
 
-    default:
-      // それ以外のキーは今は無視
-      break;
+  selectedIndex = idx;
+  highlightSelectedNote();
+  scrollNoteIntoView();
+}
+
+/**
+ * 選択されている音符だけ赤くする
+ */
+function highlightSelectedNote() {
+  if (!osmd || allGraphicalNotes.length === 0) return;
+  if (selectedIndex < 0 || selectedIndex >= allGraphicalNotes.length) return;
+
+  // いったん全部黒に戻す
+  for (const gNote of allGraphicalNotes) {
+    gNote.setColor("#000000"); // Notehead, stem 等まとめて
   }
+
+  // 選択中だけ赤
+  const sel = allGraphicalNotes[selectedIndex];
+  if (sel) {
+    sel.setColor("#ff0000");
+  }
+
+  // 色変更は再レンダリング不要
 }
 
-// ===== クリア =====
+/**
+ * 選択中の音符が見切れていたら、スクロールして見える位置まで持ってくる
+ */
+function scrollNoteIntoView() {
+  const scrollView = document.getElementById("scoreScroll");
+  const sel = allGraphicalNotes[selectedIndex];
+  if (!sel) return;
 
-function clearAll() {
-  if (notes.length === 0) return;
-  if (!confirm("すべてのノートを削除しますか？")) return;
-  notes = [];
-  renderNoteList();
+  const pos = sel.PositionAndShape.absolutePosition; // OSMD座標
+  const PointF2D = opensheetmusicdisplay.PointF2D;
+
+  // OSMD座標 → SVG → DOM と変換して、Y位置だけ使ってスクロール調整しても良いが、
+  // ここでは簡易的に SVG の boundingBox を参照するやり方でもOK。
+  // （必要ならここを後で詰めましょう）
 }
-
-// ===== 初期化 =====
-
-function init() {
-  updateStatus();
-  renderNoteList();
-  document.addEventListener("keydown", handleKeyDown);
-  downloadXmlBtn.addEventListener("click", downloadMusicXML);
-  clearBtn.addEventListener("click", clearAll);
-}
-
-init();
