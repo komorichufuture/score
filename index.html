@@ -2,289 +2,133 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Keyboard Notation → MusicXML</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MusicXML エディタ（OSMD + クリック/矢印選択）</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
-      background: #1e293b;
-      color: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #222;
+      color: #eee;
       min-height: 100vh;
       display: flex;
       justify-content: center;
-      align-items: flex-start;
-      padding: 16px;
+      align-items: stretch;
     }
 
     .app {
       width: 100%;
-      max-width: 800px;
-      background: #0f172a;
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-      border: 1px solid #334155;
-    }
-
-    h1 {
-      font-size: 1.4rem;
-      margin-bottom: 12px;
-      text-align: center;
-    }
-
-    .status-bar {
+      max-width: 1200px;
+      padding: 16px;
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 12px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: #020617;
-      border: 1px solid #1e293b;
-      font-size: 0.9rem;
+      flex-direction: column;
+      gap: 12px;
     }
 
-    .status-item {
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: #111827;
-      border: 1px solid #374151;
-    }
-
-    .status-label {
-      opacity: 0.7;
-      margin-right: 4px;
-    }
-
-    .status-value {
-      font-weight: 600;
-      color: #facc15;
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-      gap: 16px;
-    }
-
-    @media (max-width: 720px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .panel {
-      background: #020617;
-      border-radius: 12px;
-      padding: 12px;
-      border: 1px solid #1f2937;
-    }
-
-    .panel h2 {
-      font-size: 1rem;
-      margin-bottom: 8px;
-      border-bottom: 1px solid #1f2937;
-      padding-bottom: 4px;
-    }
-
-    .cheatsheet-list {
-      list-style: none;
-      font-size: 0.85rem;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 4px 8px;
-    }
-
-    .cheatsheet-list li {
-      padding: 4px 6px;
+    .score-panel {
+      background: #333;
       border-radius: 8px;
-      background: #020617;
-      border: 1px solid #111827;
+      padding: 8px 8px 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 400px;
+    }
+
+    .score-toolbar {
       display: flex;
       align-items: center;
-      gap: 6px;
-    }
-
-    .keycap {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 24px;
-      padding: 2px 6px;
-      border-radius: 6px;
-      background: #111827;
-      border: 1px solid #4b5563;
-      font-family: "JetBrains Mono", "Fira Code", monospace;
-      font-size: 0.8rem;
-    }
-
-    .score-list {
-      list-style: decimal;
-      padding-left: 1.4rem;
-      max-height: 260px;
-      overflow-y: auto;
-      font-size: 0.9rem;
-    }
-
-    .score-list li {
-      padding: 2px 4px;
-      border-radius: 6px;
-      margin-bottom: 2px;
-    }
-
-    .score-list li:nth-child(odd) {
-      background: rgba(15, 23, 42, 0.7);
-    }
-
-    .score-list li:nth-child(even) {
-      background: rgba(15, 23, 42, 0.4);
-    }
-
-    .note-tag {
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 0.75rem;
-      background: #0f172a;
-      border: 1px solid #4b5563;
-      margin-left: 4px;
-    }
-
-    .buttons {
-      display: flex;
-      flex-wrap: wrap;
       gap: 8px;
-      margin-top: 12px;
-      justify-content: flex-end;
+      padding: 4px 4px 8px;
+      font-size: 14px;
     }
 
-    button {
-      border: none;
-      outline: none;
-      cursor: pointer;
-      border-radius: 999px;
-      padding: 8px 14px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: transform 0.05s ease, box-shadow 0.05s ease,
-        background 0.2s ease;
+    .score-toolbar input[type="file"] {
+      font-size: 12px;
     }
 
-    button:active {
-      transform: translateY(1px);
-      box-shadow: none;
+    .score-info {
+      margin-left: auto;
+      font-size: 12px;
+      opacity: 0.8;
     }
 
-    .btn-primary {
-      background: linear-gradient(135deg, #22c55e, #16a34a);
-      color: #022c22;
-      box-shadow: 0 8px 16px rgba(34, 197, 94, 0.35);
+    .score-view {
+      flex: 1;
+      overflow-y: auto; /* ← これが上下スクロールバー */
+      background: #fff;
+      border-radius: 6px 6px 0 0;
+      padding: 8px;
     }
 
-    .btn-secondary {
-      background: #111827;
-      color: #e5e7eb;
-      border: 1px solid #374151;
+    #osmd-container {
+      min-height: 300px;
     }
 
-    .hint {
-      margin-top: 8px;
-      font-size: 0.8rem;
-      opacity: 0.75;
+    .hint-bar {
+      background: #444;
+      color: #ddd;
+      font-size: 12px;
+      padding: 6px 8px;
+      border-radius: 0 0 6px 6px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
     }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      background: #111827;
-      border: 1px solid #374151;
-      margin-left: 4px;
+    .keyboard-panel {
+      background: #333;
+      border-radius: 8px;
+      padding: 8px;
     }
 
-    code {
-      font-family: "JetBrains Mono", "Fira Code", monospace;
-      font-size: 0.8rem;
-      background: #020617;
-      padding: 1px 4px;
+    .keyboard-panel h2 {
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .keyboard-panel img {
+      max-width: 100%;
+      height: auto;
+      display: block;
       border-radius: 4px;
+      background: #222;
     }
   </style>
 </head>
 <body>
   <div class="app">
-    <h1>キーボード記譜 → MusicXML エクスポータ</h1>
+    <div class="score-panel">
+      <div class="score-toolbar">
+        <label>
+          MusicXML 読み込み:
+          <input type="file" id="musicxmlInput" accept=".xml,.musicxml,.mxl">
+        </label>
+        <div class="score-info" id="noteCountInfo">未読込</div>
+      </div>
 
-    <div class="status-bar">
-      <div class="status-item">
-        <span class="status-label">現在の音高:</span>
-        <span id="currentPitch" class="status-value">C4</span>
+      <div class="score-view" id="scoreScroll">
+        <div id="osmd-container"></div>
       </div>
-      <div class="status-item">
-        <span class="status-label">現在の音価:</span>
-        <span id="currentDuration" class="status-value">quarter (4分音符)</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">ノート数:</span>
-        <span id="noteCount" class="status-value">0</span>
+
+      <div class="hint-bar">
+        <div>
+          ▶ 操作: クリックで音符選択 / ← → で前後の音符へ移動
+        </div>
+        <div>
+          選択中の音符は<strong>赤色</strong>で表示
+        </div>
       </div>
     </div>
 
-    <div class="layout">
-      <section class="panel">
-        <h2>キー割り当て <span class="badge">内部フォーマット → MusicXML 3.1</span></h2>
-        <ul class="cheatsheet-list">
-          <li><span class="keycap">↑</span> 音高を1ステップ上げる</li>
-          <li><span class="keycap">↓</span> 音高を1ステップ下げる</li>
-          <li><span class="keycap">1</span> 全音符 (whole)</li>
-          <li><span class="keycap">2</span> 2分音符 (half)</li>
-          <li><span class="keycap">3</span> 4分音符 (quarter)</li>
-          <li><span class="keycap">4</span> 8分音符 (eighth)</li>
-          <li><span class="keycap">5</span> 16分音符 (16th)</li>
-          <li><span class="keycap">N</span> 音符を追加 (Note)</li>
-          <li><span class="keycap">R</span> 休符を追加 (Rest)</li>
-          <li><span class="keycap">D</span> 最後のノートを削除</li>
-        </ul>
-        <p class="hint">
-          まず <code>↑ / ↓</code> で音高、<code>1〜5</code> で音価を選び、
-          <code>N</code> で音符、<code>R</code> で休符をどんどん打ち込んでください。
-        </p>
-        <p class="hint">
-          書き出しファイルの拡張子は <code>.musicxml</code> です（多くのソフトでそのまま読めます）。
-        </p>
-      </section>
-
-      <section class="panel">
-        <h2>スコア（テキスト表示）</h2>
-        <ol id="noteList" class="score-list"></ol>
-
-        <div class="buttons">
-          <button id="clearBtn" class="btn-secondary" type="button">
-            全削除
-          </button>
-          <button id="downloadXmlBtn" class="btn-primary" type="button">
-            MusicXML をダウンロード
-          </button>
-        </div>
-        <p class="hint">
-          ※ まだ五線譜表示や再生はありません。まずは「キーボード → MusicXML」のパイプを作る段階です。
-        </p>
-      </section>
+    <div class="keyboard-panel">
+      <h2>キーボード割り当てチートシート（画像差し替え可）</h2>
+      <!-- ここにさっきのキーボード画像を置く。ファイル名は好きに変えてOK -->
+      <img src="keyboard_cheatsheet.png" alt="Keyboard cheat sheet">
     </div>
   </div>
 
+  <!-- OSMD 本体（最新版 1.9 系） -->
+  <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.9.0/build/opensheetmusicdisplay.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
