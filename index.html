@@ -519,7 +519,7 @@ function addNoteCurrent() {
 }
 
 function addRest(duration) {
-	const restOctave = PITCHES[curPitchIdx].octave;
+	const restOctave = PITCHES[curPitchIdx]?.octave || 4;
 	events.push({
 		type: "rest",
 		duration: duration || curDuration,
@@ -863,13 +863,14 @@ function generateMusicXML() {
 
 	let measureNumber = 1;
 	let open = false;
+	let measureHasContent = false;
 
 	function openMeasure() {
 		xml += `	<measure number="${measureNumber}">
 `;
 		if (measureNumber === 1) {
 			// 初期設定 (4/4拍子、ハ長調、ト音記号)
-			xml += `	<attributes>
+			xml += `		<attributes>
 			<divisions>${DIV}</divisions>
 			<key><fifths>0</fifths></key>
 			<time><beats>4</beats><beat-type>4</beat-type></time>
@@ -878,11 +879,23 @@ function generateMusicXML() {
 `;
 		}
 		open = true;
+		measureHasContent = false;
 	}
 
 	function closeMeasure(isFinal) {
+		// 小節に内容がない場合は全休符を追加
+		if (!measureHasContent) {
+			const d = DUR_INFO.whole;
+			xml += `		<note>
+			<rest/>
+			<duration>${d.div}</duration>
+			<type>${d.xml}</type>
+		</note>
+`;
+		}
+		
 		if (isFinal) {
-			xml += `	<barline location="right">
+			xml += `		<barline location="right">
 			<bar-style>light-heavy</bar-style>
 		</barline>
 `;
@@ -897,96 +910,94 @@ function generateMusicXML() {
 	if (events.length === 0) {
 		openMeasure();
 		const d = DUR_INFO.whole;
-		xml += `	<note>
-		<rest/>
-		<duration>${d.div}</duration>
-		<type>${d.xml}</type>
-	</note>
+		xml += `		<note>
+			<rest/>
+			<duration>${d.div}</duration>
+			<type>${d.xml}</type>
+		</note>
 `;
 		closeMeasure(false);
 	} else {
 		openMeasure();
 		events.forEach((ev, i) => {
 			if (ev.type === "note") {
+				measureHasContent = true;
 				const base = PITCHES[ev.pitchIdx];
 				const info = DUR_INFO[ev.duration];
 				let dur = info.div;
 				if (ev.dots) dur += info.div / 2;
 
-				xml += `	<note>
+				xml += `		<note>
 `;
 				// 和音の場合はchordタグを追加
 				if (ev.isChord) {
-					xml += `		<chord/>
+					xml += `			<chord/>
 `;
 				}
-				xml += `		<pitch>
-			<step>${base.step}</step>
+				xml += `			<pitch>
+				<step>${base.step}</step>
 `;
 				if (ev.alter) {
-					xml += `			<alter>${ev.alter}</alter>
+					xml += `				<alter>${ev.alter}</alter>
 `;
 				}
-				xml += `			<octave>${base.octave}</octave>
-		</pitch>
-		<duration>${dur}</duration>
-		<type>${info.xml}</type>
+				xml += `				<octave>${base.octave}</octave>
+			</pitch>
+			<duration>${dur}</duration>
+			<type>${info.xml}</type>
 `;
 				if (ev.dots) {
-					xml += `		<dot/>
+					xml += `			<dot/>
 `;
 				}
 				if (ev.alter !== 0) {
-					xml += `		<accidental>${ev.alter === 1 ? 'sharp' : 'flat'}</accidental>
+					xml += `			<accidental>${ev.alter === 1 ? 'sharp' : 'flat'}</accidental>
 `;
 				}
 
 				// タイ・スラー
 				if (ev.ties.length > 0 || ev.slurs.length > 0) {
-					xml += `		<notations>
+					xml += `			<notations>
 `;
 					ev.ties.forEach(t => {
-						xml += `			<tied type="${t}"/>
+						xml += `				<tied type="${t}"/>
 `;
 					});
 					ev.slurs.forEach(s => {
-						xml += `			<slur type="${s}" number="1"/>
+						xml += `				<slur type="${s}" number="1"/>
 `;
 					});
-					xml += `		</notations>
+					xml += `			</notations>
 `;
 				}
 				
 				// MusicXML 3.1 では <tie> タグは <note> の直下に配置
 				ev.ties.forEach(t => {
-					xml += `		<tie type="${t}"/>
+					xml += `			<tie type="${t}"/>
 `;
 				});
 				
-				xml += `	</note>
+				xml += `		</note>
 `;
 			} else if (ev.type === "rest") {
+				measureHasContent = true;
 				const info = DUR_INFO[ev.duration];
 				let dur = info.div;
 				if (ev.dots) dur += info.div / 2;
 
-				xml += `	<note>
-		<rest>
-`;
-				// 休符のオクターブ指定（表示位置調整のため）
-				const restPitch = PITCHES[pitchIndexFor("B", ev.restOctave)];
-				xml += `			<display-step>${restPitch.step}</display-step>
-			<display-octave>${restPitch.octave}</display-octave>
-`;
-				xml += `		</rest>
-		<duration>${dur}</duration>
-		<type>${info.xml}</type>
+				xml += `		<note>
+			<rest>
+				<display-step>B</display-step>
+				<display-octave>${ev.restOctave || 4}</display-octave>
+			</rest>
+			<duration>${dur}</duration>
+			<type>${info.xml}</type>
 `;
 				if (ev.dots) {
-					xml += `		<dot/>
+					xml += `			<dot/>
 `;
 				}
-				xml += `	</note>
+				xml += `		</note>
 `;
 			} else if (ev.type === "bar" || ev.type === "final-bar") {
 				const isFinal = ev.type === "final-bar";
@@ -1010,23 +1021,34 @@ function generateMusicXML() {
 	============================ */
 
 async function initOSMD() {
-	osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmd-container", {
-		autoResize: true,
-		drawTitle: false,
-		followCursor: false,
-		disableCursor: true,
-		drawingParameters: "compact",
-	});
-	osmdReady = true;
-	// 初期の空譜
-	const xml = generateMusicXML();
 	try {
+		osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmd-container", {
+			autoResize: true,
+			drawTitle: false,
+			followCursor: false,
+			disableCursor: true,
+			drawingParameters: "compact",
+			renderSingleHorizontalStaffline: false,
+			stretchLastSystemLine: false,
+			drawSlurs: true,
+		});
+		osmdReady = true;
+		
+		// 初期の楽譜を生成
+		const xml = generateMusicXML();
 		await osmd.load(xml);
 		osmd.render();
-		document.getElementById("osmd-container").textContent = "";
+		
+		// 初期メッセージを削除
+		const container = document.getElementById("osmd-container");
+		if (container.textContent === "MusicXML から譜面を生成中…") {
+			container.textContent = "";
+		}
 	} catch (err) {
-		document.getElementById("osmd-container").textContent = "楽譜の読み込み中にエラーが発生しました。";
-		console.error("OSMD init error:", err);
+		console.warn("OSMD init warning:", err);
+		// エラーが発生しても続行を試みる
+		osmdReady = true;
+		document.getElementById("osmd-container").textContent = "";
 	}
 }
 
@@ -1034,12 +1056,15 @@ function scheduleOSMDRerender() {
 	if (!osmdReady) return;
 	if (osmdRenderTimer) clearTimeout(osmdRenderTimer);
 	osmdRenderTimer = setTimeout(async () => {
-		const xml = generateMusicXML();
 		try {
+			const xml = generateMusicXML();
 			await osmd.load(xml);
 			osmd.render();
 		} catch (err) {
-			console.error("OSMD render error:", err);
+			// 警告をコンソールに記録するが、処理は続行
+			if (!err.message?.includes("SkyBottomLineCalculator")) {
+				console.warn("OSMD render warning:", err);
+			}
 		}
 	}, 250);
 }
