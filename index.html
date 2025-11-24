@@ -193,7 +193,7 @@
       <h1>キーボード作曲エディタ + OSMD</h1>
       <div class="subtitle">
         上：曲全体の設定　/　中央：楽譜表示　/　下：テキストコマンド　
-        ＋ キーボード入力で音符を追加
+        ＋ キーボード入力で音符を追加（8キーで和音モード切替）
       </div>
     </div>
 
@@ -253,6 +253,10 @@
             <span class="status-label">音価</span>
             <span class="status-value" id="durationStatus">quarter (4分)</span>
           </div>
+          <div class="status-pill">
+            <span class="status-label">Chord</span>
+            <span class="status-value" id="chordStatus">OFF</span>
+          </div>
         </div>
         <div class="status-right">
           <div class="status-pill">
@@ -265,15 +269,32 @@
 
     <!-- 下段：コマンドバー＆ヘルプ -->
     <div class="command-panel">
-      <div class="command-label">コマンドバー（例：<code>tempo 140</code> / <code>time 3/4</code> / <code>clef bass</code> / <code>key Dm</code>）</div>
+      <div class="command-label">
+        コマンドバー（例：<code>tempo 140</code> / <code>time 3/4</code> / <code>clef bass</code> / <code>key Dm</code>）
+      </div>
       <div class="command-input-row">
         <span class="command-prefix">:</span>
         <input id="commandInput" type="text" placeholder="コマンドを入力して Enter （先頭の : は省略可）" />
       </div>
       <div class="help">
-        <div><strong>音符入力:</strong> A S D F G H J = C4〜B4（白鍵）／ R = 休符挿入</div>
-        <div><strong>音価変更:</strong> 1=全音符, 2=2分, 3=4分, 4=8分, 5=16分, 6=32分, 7=64分</div>
-        <div><strong>移動と編集:</strong> ←→=カーソル移動 / ↑↓=半音上げ下げ / Backspace, Delete=削除</div>
+        <div>
+          <strong>音符入力:</strong>
+          白鍵 A S D F G H J = C4〜B4 /
+          黒鍵 Q W E T Y = C#4〜A#4 /
+          R = 休符挿入（現在の音価）
+        </div>
+        <div>
+          <strong>音価変更:</strong>
+          1=全音符, 2=2分, 3=4分, 4=8分, 5=16分, 6=32分, 7=64分
+        </div>
+        <div>
+          <strong>和音モード:</strong>
+          8 = Chord ON/OFF（ON中は同じ拍に音を積む）
+        </div>
+        <div>
+          <strong>移動と編集:</strong>
+          ←→=カーソル移動 / ↑↓=半音上下 / Backspace, Delete=削除
+        </div>
       </div>
     </div>
   </div>
@@ -283,14 +304,18 @@
     const divisions = 64; // quarter note divisions (MusicXML <divisions>)
     let osmd = null;
 
-    // 楽譜データ（単声）
-    // event: { type: "note"|"rest", pitch?: "C4", duration: "whole"|"half"|... }
+    // 楽譜データ（単声＋和音）
+    // event:
+    //  - 単音: { type: "note", pitch: "C4", duration: "quarter", chord?: false }
+    //  - 和音の追加音: { type: "note", pitch: "E4", duration: "quarter", chord: true }
+    //  - 休符: { type: "rest", duration: "quarter" }
     let score = [];
 
     // エディタ状態
     let editorState = {
       cursorIndex: 0,
-      duration: "quarter" // 現在の音価
+      duration: "quarter", // 現在の音価
+      chordMode: false      // 和音モード ON/OFF
     };
 
     // 曲全体の設定
@@ -351,15 +376,23 @@
     }
 
     // ====== 音名・半音処理 ======
-    // キーからピッチへの簡易マッピング（1オクターブ C4〜B4）
+    // キーからピッチへの簡易マッピング（C4〜B4 + 黒鍵）
     const keyToPitch = {
+      // 白鍵（ホームポジション）
       "a": "C4",
       "s": "D4",
       "d": "E4",
       "f": "F4",
       "g": "G4",
       "h": "A4",
-      "j": "B4"
+      "j": "B4",
+
+      // 黒鍵
+      "q": "C#4",
+      "w": "D#4",
+      "e": "F#4",
+      "t": "G#4",
+      "y": "A#4"
     };
 
     // pitch "C#4" などを {step: "C", alter: 1, octave: 4} に分解
@@ -406,7 +439,7 @@
       return midiToPitch(midi + semitones);
     }
 
-    // ====== duration / type マッピング ======
+    // ====== duration / type マッピング ======>
     function durationTypeFromDigit(digit) {
       switch (digit) {
         case "1": return "whole";
@@ -521,7 +554,7 @@
         xmlParts.push(`</measure>`);
       }
 
-      function writeEvent(ev, dur) {
+      function writeEvent(ev, dur, isChordNote) {
         if (ev.type === "rest") {
           xmlParts.push(`<note>`);
           xmlParts.push(`<rest/>`);
@@ -529,9 +562,15 @@
           xmlParts.push(`<type>${typeToMusicXMLType(ev.duration)}</type>`);
           xmlParts.push(`</note>`);
         } else if (ev.type === "note") {
-          const p = parsePitch(ev.pitch);
-          if (!p) return;
           xmlParts.push(`<note>`);
+          if (isChordNote) {
+            xmlParts.push(`<chord/>`);
+          }
+          const p = parsePitch(ev.pitch);
+          if (!p) {
+            xmlParts.push(`</note>`);
+            return;
+          }
           xmlParts.push(`<pitch>`);
           xmlParts.push(`<step>${p.step}</step>`);
           if (p.alter !== 0) {
@@ -554,16 +593,23 @@
         for (let i = 0; i < score.length; i++) {
           const ev = score[i];
           const dur = durationToDivisions(ev.duration || "quarter");
+          const isChordNote = (ev.type === "note" && ev.chord);
 
-          if (currentMeasureDuration + dur > measureMax && currentMeasureDuration > 0) {
-            closeMeasure();
-            measureIndex++;
-            currentMeasureDuration = 0;
-            openMeasure();
+          // 和音追加音は拍を増やさないので小節チェックから除外
+          if (!isChordNote) {
+            if (currentMeasureDuration + dur > measureMax && currentMeasureDuration > 0) {
+              closeMeasure();
+              measureIndex++;
+              currentMeasureDuration = 0;
+              openMeasure();
+            }
           }
 
-          writeEvent(ev, dur);
-          currentMeasureDuration += dur;
+          writeEvent(ev, dur, isChordNote);
+
+          if (!isChordNote) {
+            currentMeasureDuration += dur;
+          }
         }
       }
 
@@ -609,12 +655,16 @@
       }
     }
 
-    // ====== ステータスバー更新 ======
+    // ====== ステータスバー更新 ======>
     function updateStatusBar() {
       const cursorStatus = document.getElementById("cursorStatus");
       const durationStatus = document.getElementById("durationStatus");
+      const chordStatus = document.getElementById("chordStatus");
       cursorStatus.textContent = `${editorState.cursorIndex} / ${score.length}`;
       durationStatus.textContent = durationLabel(editorState.duration);
+      if (chordStatus) {
+        chordStatus.textContent = editorState.chordMode ? "ON" : "OFF";
+      }
     }
 
     // ====== UI と settings 同期 ======
@@ -735,6 +785,15 @@
     function handleKeyDown(e) {
       const active = document.activeElement;
       if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) {
+        // コマンド欄や数値入力中はグローバルショートカットを止める
+        return;
+      }
+
+      // ===== 和音モード切替（8） =====
+      if (e.key === "8") {
+        e.preventDefault();
+        editorState.chordMode = !editorState.chordMode;
+        updateStatusBar();
         return;
       }
 
@@ -787,6 +846,7 @@
           editorState.cursorIndex = Math.max(0, editorState.cursorIndex - 1);
           scheduleRender();
         } else if (score.length > 0 && editorState.cursorIndex === 0) {
+          // 先頭を消す
           pushHistory();
           score.splice(0, 1);
           editorState.cursorIndex = 0;
@@ -817,13 +877,30 @@
         return;
       }
 
-      // 音符挿入（A,S,D,F,G,H,J）
+      // 音符挿入（白鍵 + 黒鍵）
       const keyLower = e.key.toLowerCase();
       if (keyToPitch[keyLower]) {
         e.preventDefault();
         pushHistory();
         const pitch = keyToPitch[keyLower];
-        const ev = { type: "note", pitch, duration: editorState.duration };
+
+        // 和音モード中 & 直前にノートがある場合はそのノートに重ねる
+        if (editorState.chordMode && editorState.cursorIndex > 0 && score.length > 0) {
+          const anchorIndex = editorState.cursorIndex - 1;
+          const anchor = score[anchorIndex];
+          if (anchor && anchor.type === "note") {
+            const dur = anchor.duration || editorState.duration;
+            const ev = { type: "note", pitch, duration: dur, chord: true };
+            // カーソル位置に挿入（アンカーの後ろ、次のイベントの前）
+            score.splice(editorState.cursorIndex, 0, ev);
+            // 和音追加音ではカーソルは進めない
+            scheduleRender();
+            return;
+          }
+        }
+
+        // 通常の単音挿入
+        const ev = { type: "note", pitch, duration: editorState.duration, chord: false };
         score.splice(editorState.cursorIndex, 0, ev);
         editorState.cursorIndex++;
         scheduleRender();
